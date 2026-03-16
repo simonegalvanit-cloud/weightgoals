@@ -1,6 +1,13 @@
 import { createClient } from "./supabase";
 
-const supabase = createClient();
+let _supabase: ReturnType<typeof createClient>;
+function getSupabase() {
+  if (!_supabase) _supabase = createClient();
+  return _supabase;
+}
+const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+  get(_, prop) { return (getSupabase() as any)[prop]; },
+});
 
 // ============ AUTH ============
 

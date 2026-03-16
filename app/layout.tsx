@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   icons: { icon: "/icon.png", apple: "/icon.png" },
 };
 
+export const dynamic = "force-dynamic";
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
