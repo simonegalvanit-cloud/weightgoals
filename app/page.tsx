@@ -81,7 +81,7 @@ export default function Home() {
         setJournal(prev => [data, ...prev]);
       },
     });
-    return unsub;
+    return () => { unsub(); };
   }, [journey?.id]);
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
@@ -308,7 +308,7 @@ export default function Home() {
           <Btn primary onClick={() => {
             const s = parseFloat(setupData.startKg), g = parseFloat(setupData.goalKg);
             if (!s || !g || g >= s) { sToast("goal must be less than start"); return; }
-            const ms = []; for (let kg = s - 1; kg >= g; kg--) ms.push({ kg, rw: "", e: "🎯", e2: "✨", msg: "" });
+            const ms: { kg: number; rw: string; e: string; e2: string; msg: string }[] = []; for (let kg = s - 1; kg >= g; kg--) ms.push({ kg, rw: "", e: "🎯", e2: "✨", msg: "" });
             setSetupData(p => ({ ...p, milestones: ms }));
             setScreen("setup-milestones");
           }} disabled={!setupData.startKg || !setupData.goalKg}>Continue</Btn>
