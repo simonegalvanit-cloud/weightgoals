@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase";
 import * as api from "@/lib/api";
 import { THEMES, MOOD_OPTIONS, FONTS } from "@/lib/themes";
@@ -91,6 +91,19 @@ export default function Home() {
   const themeKey = profile?.theme || setupData.theme || "pink";
   const T = THEMES[themeKey] || THEMES.pink;
   const f1 = FONTS.serif, f2 = FONTS.sans;
+
+  // eslint-disable-next-line react/display-name
+  const Btn = useMemo(() => ({ children, primary, onClick, disabled, style: s }: any) => (
+    <button onClick={onClick} disabled={disabled} style={{ fontFamily: f2, padding: primary ? "13px 32px" : "10px 24px", borderRadius: 100, border: primary ? "none" : `1px solid ${T.brd}`, background: primary ? T.accent : "transparent", color: primary ? "#fff" : T.txt2, fontSize: 13, letterSpacing: 1, textTransform: "uppercase" as const, fontWeight: 500, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.4 : 1, transition: "all .2s", width: "100%", ...s }}>{children}</button>
+  ), [T, f2]);
+
+  // eslint-disable-next-line react/display-name
+  const Input = useMemo(() => ({ label, ...props }: any) => (
+    <div style={{ marginBottom: 14 }}>
+      {label && <div style={{ fontSize: 9, letterSpacing: 1.5, color: T.txt3, textTransform: "uppercase" as const, marginBottom: 5 }}>{label}</div>}
+      <input {...props} style={{ width: "100%", fontFamily: f2, fontSize: 14, padding: "12px 14px", border: `1px solid ${T.brd}`, borderRadius: 14, background: T.bg, color: T.txt, outline: "none", ...props.style }} />
+    </div>
+  ), [T, f2]);
 
   // ============ AUTH ============
   const handleAuth = async () => {
@@ -226,16 +239,6 @@ export default function Home() {
   };
 
   // ============ SHARED UI ============
-  const Btn = ({ children, primary, onClick, disabled, style: s }: any) => (
-    <button onClick={onClick} disabled={disabled} style={{ fontFamily: f2, padding: primary ? "13px 32px" : "10px 24px", borderRadius: 100, border: primary ? "none" : `1px solid ${T.brd}`, background: primary ? T.accent : "transparent", color: primary ? "#fff" : T.txt2, fontSize: 13, letterSpacing: 1, textTransform: "uppercase" as const, fontWeight: 500, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.4 : 1, transition: "all .2s", width: "100%", ...s }}>{children}</button>
-  );
-
-  const Input = ({ label, ...props }: any) => (
-    <div style={{ marginBottom: 14 }}>
-      {label && <div style={{ fontSize: 9, letterSpacing: 1.5, color: T.txt3, textTransform: "uppercase" as const, marginBottom: 5 }}>{label}</div>}
-      <input {...props} style={{ width: "100%", fontFamily: f2, fontSize: 14, padding: "12px 14px", border: `1px solid ${T.brd}`, borderRadius: 14, background: T.bg, color: T.txt, outline: "none", ...props.style }} />
-    </div>
-  );
 
   // ============ LOADING ============
   if (screen === "loading") return (
