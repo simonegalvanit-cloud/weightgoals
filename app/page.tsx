@@ -81,7 +81,7 @@ export default function Home() {
         setJournal(prev => [data, ...prev]);
       },
     });
-    return unsub;
+    return () => { unsub(); };
   }, [journey?.id]);
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
