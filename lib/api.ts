@@ -6,6 +6,8 @@ import {
   onAuthStateChanged,
   updateProfile,
   sendEmailVerification,
+  GoogleAuthProvider,
+  signInWithPopup,
   type User,
 } from "firebase/auth";
 import {
@@ -39,6 +41,22 @@ export async function signUp(email: string, password: string, name: string) {
     theme: "pink",
     created_at: serverTimestamp(),
   });
+  return { data: { user: cred.user }, error: null };
+}
+
+export async function signInWithGoogle() {
+  const provider = new GoogleAuthProvider();
+  const cred = await signInWithPopup(auth, provider);
+  // Create profile doc if it doesn't exist
+  const profileSnap = await getDoc(doc(db, "profiles", cred.user.uid));
+  if (!profileSnap.exists()) {
+    await setDoc(doc(db, "profiles", cred.user.uid), {
+      id: cred.user.uid,
+      name: cred.user.displayName || "User",
+      theme: "pink",
+      created_at: serverTimestamp(),
+    });
+  }
   return { data: { user: cred.user }, error: null };
 }
 
