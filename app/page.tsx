@@ -30,6 +30,9 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(false);
   const [emojiPicker, setEmojiPicker] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [joinLoading, setJoinLoading] = useState(false);
+  const pendingInviteRef = useRef<string>("");
   const [setupData, setSetupData] = useState({ name: "", startKg: "", goalKg: "", theme: "pink", milestones: [] as any[] });
   const tRef = useRef<any>(null);
   const fwRef = useRef<any>(null);
@@ -40,13 +43,37 @@ export default function Home() {
         setUser(firebaseUser);
         const prof = await api.getProfile(firebaseUser.uid);
         setProfile(prof);
+
+        // Check if there's a pending invite code from the join screen
+        const pending = pendingInviteRef.current;
+        if (pending) {
+          pendingInviteRef.current = "";
+          try {
+            const { error } = await api.joinByInviteCode(pending);
+            if (error) { sToast(error.message || "Invalid invite code"); }
+            else { sToast("Connected to partner's journey!"); }
+          } catch { sToast("Failed to join — try the code again from settings"); }
+        }
+
         const journeys = await api.getMyJourneys(firebaseUser.uid);
+        // Also check partner journeys
+        const partnerJourneys = await api.getPartnerJourneys(firebaseUser.uid);
         if (journeys.length > 0) {
           const j = journeys[0];
           setJourney(j);
           const ms = await api.getMilestones(j.id);
           setMilestones(ms);
           const je = await api.getJournalEntries(j.id);
+          setJournal(je);
+          setScreen("main");
+        } else if (partnerJourneys.length > 0) {
+          // Partner joined someone else's journey — load that journey
+          const pj = partnerJourneys[0] as any;
+          const fullJourney = pj.journeys;
+          setJourney(fullJourney);
+          const ms = await api.getMilestones(fullJourney.id);
+          setMilestones(ms);
+          const je = await api.getJournalEntries(fullJourney.id);
           setJournal(je);
           setScreen("main");
         } else {
@@ -443,24 +470,91 @@ export default function Home() {
   );
 
   // ============ JOIN ============
+  const handleJoinAuth = async () => {
+    if (!inviteCode || inviteCode.length < 4) { sToast("Enter the invite code first"); return; }
+    setAuthError("");
+    setAuthLoading(true);
+    pendingInviteRef.current = inviteCode;
+    try {
+      if (authMode === "signup") {
+        await api.signUp(authForm.email, authForm.password, authForm.name);
+      } else {
+        const { error } = await api.signIn(authForm.email, authForm.password);
+        if (error) { setAuthError(error.message); pendingInviteRef.current = ""; }
+      }
+    } catch (err: any) {
+      setAuthError(err.message || "Something went wrong");
+      pendingInviteRef.current = "";
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleJoinGoogle = async () => {
+    if (!inviteCode || inviteCode.length < 4) { sToast("Enter the invite code first"); return; }
+    setAuthError("");
+    setAuthLoading(true);
+    pendingInviteRef.current = inviteCode;
+    try {
+      await api.signInWithGoogle();
+    } catch (err: any) {
+      setAuthError(err.message || "Google sign-in failed");
+      pendingInviteRef.current = "";
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   if (screen === "join") return (
     <div style={{ background: T.bg, minHeight: "100vh", fontFamily: f2, color: T.txt }}>
       <div style={{ maxWidth: 420, margin: "0 auto", padding: "40px 24px", position: "relative" }}>
-        <div onClick={() => setScreen("welcome")} style={{ fontSize: 13, color: T.txt3, cursor: "pointer", marginBottom: 16 }}>← back</div>
+        <div onClick={() => { setScreen("welcome"); setInviteCode(""); setAuthError(""); }} style={{ fontSize: 13, color: T.txt3, cursor: "pointer", marginBottom: 16 }}>← back</div>
         <div style={{ textAlign: "center", marginBottom: 24, opacity: on ? 1 : 0, transition: "all .9s cubic-bezier(.16,1,.3,1)" }}>
           <div style={{ fontSize: 10, letterSpacing: 4, color: T.txt3, textTransform: "uppercase", marginBottom: 8 }}>partner mode</div>
           <div style={{ fontFamily: f1, fontSize: 28, fontStyle: "italic" }}>Join a journey</div>
-          <div style={{ fontSize: 13, color: T.txt2, marginTop: 8 }}>Enter the invite code your partner shared</div>
+          <div style={{ fontSize: 13, color: T.txt2, marginTop: 8 }}>Enter your partner's code, then sign in to connect</div>
         </div>
-        <Input label="Invite code" placeholder="e.g. AB3K9X" value={authForm.name} onChange={(e: any) => setAuthForm(p => ({ ...p, name: e.target.value.toUpperCase() }))} style={{ textAlign: "center", fontSize: 24, fontFamily: f1, letterSpacing: 4 }} />
-        <div style={{ fontSize: 12, color: T.txt3, textAlign: "center", marginBottom: 20 }}>You'll need to sign in first, then the code connects you</div>
-        <Btn primary disabled={authForm.name.length < 4} onClick={async () => {
-          if (!user) { sToast("Sign in first, then enter the code"); setScreen("welcome"); return; }
-          const { data, error } = await api.joinByInviteCode(authForm.name);
-          if (error || data?.error) { sToast(data?.error || "Invalid code"); return; }
-          sToast("Connected!");
-          window.location.reload();
-        }}>Connect</Btn>
+
+        {/* Invite code input */}
+        <div style={{ background: T.card, border: `2px solid ${inviteCode.length >= 4 ? T.accent : T.brd}`, borderRadius: 20, padding: "20px 18px", marginBottom: 16, transition: "border-color .3s" }}>
+          <div style={{ fontSize: 9, letterSpacing: 1.5, color: T.txt3, textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>invite code</div>
+          <input placeholder="AB3K9X" value={inviteCode} onChange={(e: any) => setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))}
+            style={{ width: "100%", fontFamily: f1, fontSize: 28, padding: "10px 14px", border: "none", background: "transparent", color: T.txt, outline: "none", textAlign: "center", letterSpacing: 6 }} />
+          {inviteCode.length >= 4 && <div style={{ fontSize: 10, color: T.accent, textAlign: "center", marginTop: 4 }}>code ready</div>}
+        </div>
+
+        {/* Auth form */}
+        <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "24px 20px", marginBottom: 16, textAlign: "left", opacity: inviteCode.length >= 4 ? 1 : 0.4, pointerEvents: inviteCode.length >= 4 ? "auto" : "none", transition: "opacity .3s" }}>
+          <div style={{ fontSize: 11, color: T.txt2, textAlign: "center", marginBottom: 14 }}>Now sign in to connect</div>
+          <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: `1px solid ${T.brd}` }}>
+            {(["signup", "signin"] as const).map(m => (
+              <button key={m} onClick={() => { setAuthMode(m); setAuthError(""); }} style={{ flex: 1, fontFamily: f2, background: "none", border: "none", padding: "10px", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", color: authMode === m ? T.txt : T.txt3, fontWeight: authMode === m ? 500 : 400, cursor: "pointer", borderBottom: authMode === m ? `1.5px solid ${T.accent}` : "1.5px solid transparent", marginBottom: -1 }}>{m === "signup" ? "Sign up" : "Sign in"}</button>
+            ))}
+          </div>
+          {authMode === "signup" && <Input label="Name" placeholder="Your name" value={authForm.name} onChange={(e: any) => setAuthForm(p => ({ ...p, name: e.target.value }))} />}
+          <Input label="Email" type="email" placeholder="you@email.com" value={authForm.email} onChange={(e: any) => setAuthForm(p => ({ ...p, email: e.target.value }))} />
+          <Input label="Password" type="password" placeholder="••••••••" value={authForm.password} onChange={(e: any) => setAuthForm(p => ({ ...p, password: e.target.value }))} />
+          {authError && <div style={{ fontSize: 12, color: "#c44", marginBottom: 12 }}>{authError}</div>}
+          <Btn primary onClick={handleJoinAuth} disabled={authLoading || !authForm.email || !authForm.password || (authMode === "signup" && !authForm.name) || inviteCode.length < 4}>
+            {authLoading ? "Connecting..." : authMode === "signup" ? "Sign up & join" : "Sign in & join"}
+          </Btn>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "18px 0" }}>
+            <div style={{ flex: 1, height: 1, background: T.brd }} />
+            <span style={{ fontSize: 10, letterSpacing: 2, color: T.txt3, textTransform: "uppercase" }}>or</span>
+            <div style={{ flex: 1, height: 1, background: T.brd }} />
+          </div>
+
+          <button onClick={handleJoinGoogle} disabled={authLoading || inviteCode.length < 4} style={{
+            width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+            padding: "12px 24px", borderRadius: 100, border: `1px solid ${T.brd}`, background: T.card,
+            fontFamily: f2, fontSize: 13, letterSpacing: 0.5, color: T.txt, cursor: authLoading ? "default" : "pointer",
+            opacity: authLoading ? 0.4 : 1, transition: "all .2s",
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+            Google & join
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -645,6 +739,29 @@ export default function Home() {
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Partner code</div>
               <div style={{ fontFamily: f1, fontSize: 28, fontWeight: 500, letterSpacing: 4, color: T.accent, textAlign: "center", padding: "12px 0" }}>{journey.invite_code}</div>
               <div style={{ fontSize: 10, color: T.txt3, textAlign: "center" }}>Share with your partner</div>
+            </div>
+            <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
+              <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Join a partner's journey</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input placeholder="Enter invite code" value={inviteCode} onChange={(e: any) => setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))}
+                  style={{ flex: 1, fontFamily: f1, fontSize: 16, padding: "10px 14px", border: `1px solid ${T.brd}`, borderRadius: 12, background: T.bg, color: T.txt, outline: "none", textAlign: "center", letterSpacing: 3 }} />
+                <button onClick={async () => {
+                  if (!inviteCode || inviteCode.length < 4) { sToast("Enter a valid code"); return; }
+                  setJoinLoading(true);
+                  try {
+                    const { error } = await api.joinByInviteCode(inviteCode);
+                    if (error) { sToast(error.message || "Invalid code"); return; }
+                    sToast("Connected to partner's journey!");
+                    setInviteCode("");
+                  } catch (err: any) {
+                    sToast(err.message || "Failed to join");
+                  } finally {
+                    setJoinLoading(false);
+                  }
+                }} disabled={joinLoading || inviteCode.length < 4} style={{ fontFamily: f2, padding: "10px 18px", borderRadius: 12, border: "none", background: T.accent, color: "#fff", fontSize: 12, letterSpacing: 1, textTransform: "uppercase" as const, cursor: joinLoading || inviteCode.length < 4 ? "default" : "pointer", opacity: joinLoading || inviteCode.length < 4 ? 0.4 : 1, whiteSpace: "nowrap" }}>
+                  {joinLoading ? "..." : "Join"}
+                </button>
+              </div>
             </div>
             <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Theme</div>
