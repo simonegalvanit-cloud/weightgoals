@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { createClient } from "@/lib/supabase";
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import * as api from "@/lib/api";
 import { THEMES, MOOD_OPTIONS, FONTS } from "@/lib/themes";
 
@@ -33,17 +34,14 @@ export default function Home() {
   const tRef = useRef<any>(null);
   const fwRef = useRef<any>(null);
 
-  const supabase = createClient();
-
   // ============ INIT ============
   useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUser(user);
-        const prof = await api.getProfile(user.id);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        const prof = await api.getProfile(firebaseUser.uid);
         setProfile(prof);
-        const journeys = await api.getMyJourneys(user.id);
+        const journeys = await api.getMyJourneys(firebaseUser.uid);
         if (journeys.length > 0) {
           const j = journeys[0];
           setJourney(j);
@@ -57,15 +55,11 @@ export default function Home() {
           setScreen("setup-name");
         }
       } else {
+        setUser(null);
         setScreen("welcome");
       }
-    })();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) setUser(session.user);
-      else { setUser(null); setScreen("welcome"); }
     });
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   // Realtime subscription
@@ -114,13 +108,15 @@ export default function Home() {
     setAuthLoading(true);
     try {
       if (authMode === "signup") {
-        const { error } = await api.signUp(authForm.email, authForm.password, authForm.name);
-        if (error) { setAuthError(error.message); return; }
-        setEmailSent(true);
+        await api.signUp(authForm.email, authForm.password, authForm.name);
+        // Firebase onAuthStateChanged will handle the rest
       } else {
         const { error } = await api.signIn(authForm.email, authForm.password);
         if (error) { setAuthError(error.message); return; }
+        // Firebase onAuthStateChanged will handle the rest
       }
+    } catch (err: any) {
+      setAuthError(err.message || "Something went wrong");
     } finally {
       setAuthLoading(false);
     }
@@ -129,9 +125,9 @@ export default function Home() {
   // ============ SETUP ============
   const finishSetup = async () => {
     if (!user) return;
-    await api.updateProfile(user.id, { name: setupData.name, theme: setupData.theme });
+    await api.updateUserProfile(user.uid, { name: setupData.name, theme: setupData.theme });
     const { journey: j, error } = await api.createJourney({
-      userId: user.id,
+      userId: user.uid,
       title: `${setupData.name}'s journey`,
       startWeight: parseFloat(setupData.startKg),
       goalWeight: parseFloat(setupData.goalKg),
@@ -145,7 +141,7 @@ export default function Home() {
     });
     if (error || !j) { sToast("Error creating journey"); return; }
     setJourney(j);
-    setProfile(await api.getProfile(user.id));
+    setProfile(await api.getProfile(user.uid));
     const ms = await api.getMilestones(j.id);
     setMilestones(ms);
     setScreen("setup-done");
@@ -182,7 +178,7 @@ export default function Home() {
       const { error } = await api.uncompleteMilestone(m.id);
       if (error) { sToast("Failed to uncheck — try again"); return; }
     } else {
-      const { error } = await api.completeMilestone(m.id, journey.id, user.id);
+      const { error } = await api.completeMilestone(m.id, journey.id, user.uid);
       if (error) { sToast("Failed to check — try again"); return; }
       setJustChecked(i);
       setCeleb({ ...m, idx: i });
@@ -240,7 +236,7 @@ export default function Home() {
 
   const addEntry = async () => {
     if (!journey || !user || (!jInput.weight && !jInput.note)) return;
-    const { data } = await api.addJournalEntry({ journeyId: journey.id, userId: user.id, weight: jInput.weight ? parseFloat(jInput.weight) : undefined, mood: jInput.mood || undefined, note: jInput.note || undefined });
+    const { data } = await api.addJournalEntry({ journeyId: journey.id, userId: user.uid, weight: jInput.weight ? parseFloat(jInput.weight) : undefined, mood: jInput.mood || undefined, note: jInput.note || undefined });
     if (data) setJournal(prev => [data, ...prev]);
     setJInput({ weight: "", mood: "", note: "" });
     sToast("journal entry added");
@@ -637,7 +633,7 @@ export default function Home() {
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Theme</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
                 {Object.entries(THEMES).map(([key, t]) => (
-                  <div key={key} onClick={async () => { await api.updateProfile(user.id, { theme: key }); setProfile((p: any) => ({ ...p, theme: key })); }} style={{ padding: "12px 8px", borderRadius: 12, textAlign: "center", cursor: "pointer", border: `2px solid ${themeKey === key ? t.accent : T.brd}`, background: t.bg, transition: "all .3s" }}>
+                  <div key={key} onClick={async () => { await api.updateUserProfile(user.uid, { theme: key }); setProfile((p: any) => ({ ...p, theme: key })); }} style={{ padding: "12px 8px", borderRadius: 12, textAlign: "center", cursor: "pointer", border: `2px solid ${themeKey === key ? t.accent : T.brd}`, background: t.bg, transition: "all .3s" }}>
                     <div style={{ width: 24, height: 24, borderRadius: "50%", background: t.accent, margin: "0 auto 6px" }} />
                     <div style={{ fontSize: 10, color: t.txt }}>{t.name}</div>
                   </div>
