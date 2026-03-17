@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { auth } from "@/lib/firebase";
-import { onAuthStateChanged, signInWithEmailAndPassword, sendEmailVerification, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import * as api from "@/lib/api";
 import { THEMES, MOOD_OPTIONS, FONTS } from "@/lib/themes";
 
@@ -28,25 +28,14 @@ export default function Home() {
   const [authForm, setAuthForm] = useState({ email: "", password: "", name: "" });
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
   const [emojiPicker, setEmojiPicker] = useState<number | null>(null);
   const [setupData, setSetupData] = useState({ name: "", startKg: "", goalKg: "", theme: "pink", milestones: [] as any[] });
   const tRef = useRef<any>(null);
   const fwRef = useRef<any>(null);
-  const authBusyRef = useRef(false);
-
   // ============ INIT ============
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Skip if handleAuth/signUp is actively running — it handles sign-out itself
-        if (authBusyRef.current) return;
-        if (!firebaseUser.emailVerified) {
-          await api.signOut();
-          setUser(null);
-          setScreen("welcome");
-          return;
-        }
         setUser(firebaseUser);
         const prof = await api.getProfile(firebaseUser.uid);
         setProfile(prof);
@@ -115,34 +104,25 @@ export default function Home() {
   const handleAuth = async () => {
     setAuthError("");
     setAuthLoading(true);
-    authBusyRef.current = true;
     try {
       if (authMode === "signup") {
         await api.signUp(authForm.email, authForm.password, authForm.name);
-        await api.signOut();
-        setEmailSent(true);
+        // onAuthStateChanged will pick up the new user and navigate to setup
       } else {
         const { error } = await api.signIn(authForm.email, authForm.password);
-        if (error) { setAuthError(error.message); return; }
-        const currentUser = auth.currentUser;
-        if (currentUser && !currentUser.emailVerified) {
-          await api.signOut();
-          setAuthError("Please verify your email before signing in. Check your inbox for a verification link.");
-          return;
-        }
-        // Firebase onAuthStateChanged will handle the rest
+        if (error) setAuthError(error.message);
+        // onAuthStateChanged will handle navigation
       }
     } catch (err: any) {
       setAuthError(err.message || "Something went wrong");
     } finally {
-      authBusyRef.current = false;
       setAuthLoading(false);
     }
   };
 
   // ============ SETUP ============
   const finishSetup = async () => {
-    if (!user) return;
+    if (!user) { sToast("Not signed in"); setScreen("welcome"); return; }
     await api.updateUserProfile(user.uid, { name: setupData.name, theme: setupData.theme });
     const { journey: j, error } = await api.createJourney({
       userId: user.uid,
@@ -282,36 +262,6 @@ export default function Home() {
           <div style={{ fontSize: 11, letterSpacing: 4, color: T.txt3, textTransform: "uppercase", marginBottom: 32 }}>reward your journey</div>
 
           <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "24px 20px", marginBottom: 16, textAlign: "left" }}>
-            {emailSent ? (
-              <div style={{ textAlign: "center", padding: "20px 0" }}>
-                <div style={{ fontSize: 40, marginBottom: 16 }}>📬</div>
-                <div style={{ fontFamily: f1, fontSize: 22, fontStyle: "italic", marginBottom: 10 }}>Almost there!</div>
-                <div style={{ fontSize: 13, color: T.txt2, lineHeight: 1.6, marginBottom: 8 }}>
-                  We sent a verification link to
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: T.txt, marginBottom: 16 }}>{authForm.email}</div>
-                <div style={{ fontSize: 13, color: T.txt2, lineHeight: 1.8, marginBottom: 20, background: T.bg, borderRadius: 12, padding: "14px 16px" }}>
-                  <div style={{ marginBottom: 6 }}>1. Open your email inbox</div>
-                  <div style={{ marginBottom: 6 }}>2. Click the verification link</div>
-                  <div>3. Come back here and sign in</div>
-                </div>
-                <div style={{ fontSize: 11, color: T.txt3, marginBottom: 16 }}>
-                  Don't see it? Check your spam or junk folder.
-                </div>
-                <Btn onClick={async () => {
-                  try {
-                    const cred = await signInWithEmailAndPassword(auth, authForm.email, authForm.password);
-                    await sendEmailVerification(cred.user);
-                    await api.signOut();
-                    setAuthError("");
-                    alert("Verification email resent! Check your inbox.");
-                  } catch {
-                    setAuthError("Could not resend. Please try again later.");
-                  }
-                }} style={{ marginBottom: 10 }}>Resend verification email</Btn>
-                <Btn onClick={() => { setEmailSent(false); setAuthMode("signin"); setAuthForm({ email: "", password: "", name: "" }); setAuthError(""); }}>Back to sign in</Btn>
-              </div>
-            ) : (<>
             <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: `1px solid ${T.brd}` }}>
               {(["signup", "signin"] as const).map(m => (
                 <button key={m} onClick={() => { setAuthMode(m); setAuthError(""); }} style={{ flex: 1, fontFamily: f2, background: "none", border: "none", padding: "10px", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", color: authMode === m ? T.txt : T.txt3, fontWeight: authMode === m ? 500 : 400, cursor: "pointer", borderBottom: authMode === m ? `1.5px solid ${T.accent}` : "1.5px solid transparent", marginBottom: -1 }}>{m === "signup" ? "Sign up" : "Sign in"}</button>
@@ -350,7 +300,6 @@ export default function Home() {
               <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
               Continue with Google
             </button>
-            </>)}
           </div>
 
           <Btn onClick={() => setScreen("join")} style={{ marginTop: 8 }}>I have an invite code</Btn>
