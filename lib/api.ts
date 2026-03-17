@@ -1,53 +1,80 @@
-import { createClient } from "./supabase";
-
-let _supabase: ReturnType<typeof createClient>;
-function getSupabase() {
-  if (!_supabase) _supabase = createClient();
-  return _supabase;
-}
-const supabase = new Proxy({} as ReturnType<typeof createClient>, {
-  get(_, prop) { return (getSupabase() as any)[prop]; },
-});
+import { auth, db } from "./firebase";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  updateProfile,
+  type User,
+} from "firebase/auth";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+  onSnapshot,
+  serverTimestamp,
+  Timestamp,
+} from "firebase/firestore";
 
 // ============ AUTH ============
 
 export async function signUp(email: string, password: string, name: string) {
-  const redirectTo = typeof window !== "undefined"
-    ? `${window.location.origin}/auth/callback`
-    : undefined;
-  return supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { name }, emailRedirectTo: redirectTo },
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  await updateProfile(cred.user, { displayName: name });
+  // Create profile doc
+  await setDoc(doc(db, "profiles", cred.user.uid), {
+    id: cred.user.uid,
+    name,
+    theme: "pink",
+    created_at: serverTimestamp(),
   });
+  return { data: { user: cred.user }, error: null };
 }
 
 export async function signIn(email: string, password: string) {
-  return supabase.auth.signInWithPassword({ email, password });
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    return { data: { user: cred.user, session: { user: cred.user } }, error: null };
+  } catch (err: any) {
+    return { data: { user: null, session: null }, error: { message: err.message } };
+  }
 }
 
 export async function signOut() {
-  return supabase.auth.signOut();
+  return firebaseSignOut(auth);
 }
 
-export async function getUser() {
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
+export async function getUser(): Promise<User | null> {
+  return auth.currentUser;
 }
 
 export function onAuthChange(callback: (session: any) => void) {
-  return supabase.auth.onAuthStateChange((_event, session) => callback(session));
+  const unsubscribe = onAuthStateChanged(auth, (user) => {
+    callback(user ? { user } : null);
+  });
+  return { data: { subscription: { unsubscribe } } };
 }
 
 // ============ PROFILE ============
 
-export async function getProfile(userId: string) {
-  const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
-  return data;
+export async function getProfile(userId: string): Promise<any> {
+  const snap = await getDoc(doc(db, "profiles", userId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
-export async function updateProfile(userId: string, updates: { name?: string; theme?: string }) {
-  return supabase.from("profiles").update(updates).eq("id", userId).select().single();
+export async function updateUserProfile(userId: string, updates: { name?: string; theme?: string }) {
+  await updateDoc(doc(db, "profiles", userId), updates);
+  const snap = await getDoc(doc(db, "profiles", userId));
+  return { data: snap.exists() ? { id: snap.id, ...snap.data() } : null, error: null };
 }
 
 // ============ JOURNEYS ============
@@ -65,69 +92,102 @@ export async function createJourney(params: {
     themeMsg: string;
   }>;
 }) {
-  const { data: journey, error } = await supabase
-    .from("journeys")
-    .insert({
-      user_id: params.userId,
-      title: params.title,
-      start_weight: params.startWeight,
-      goal_weight: params.goalWeight,
-    })
-    .select()
-    .single();
+  const journeyRef = await addDoc(collection(db, "journeys"), {
+    user_id: params.userId,
+    title: params.title,
+    start_weight: params.startWeight,
+    goal_weight: params.goalWeight,
+    is_active: true,
+    created_at: serverTimestamp(),
+  });
 
-  if (error || !journey) return { journey: null, error };
+  const journey = { id: journeyRef.id, user_id: params.userId, title: params.title, start_weight: params.startWeight, goal_weight: params.goalWeight, is_active: true };
 
-  const milestoneRows = params.milestones.map((m, i) => ({
-    journey_id: journey.id,
-    target_kg: m.targetKg,
-    reward_text: m.rewardText,
-    emoji_1: m.emoji1,
-    emoji_2: m.emoji2,
-    theme_msg: m.themeMsg,
-    sort_order: i,
-  }));
+  for (let i = 0; i < params.milestones.length; i++) {
+    const m = params.milestones[i];
+    await addDoc(collection(db, "milestones"), {
+      journey_id: journeyRef.id,
+      target_kg: m.targetKg,
+      reward_text: m.rewardText,
+      emoji_1: m.emoji1,
+      emoji_2: m.emoji2,
+      theme_msg: m.themeMsg,
+      sort_order: i,
+    });
+  }
 
-  const { error: msError } = await supabase.from("milestones").insert(milestoneRows);
-  return { journey, error: msError };
+  return { journey, error: null };
 }
 
 export async function getMyJourneys(userId: string) {
-  const { data } = await supabase
-    .from("journeys")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("is_active", true)
-    .order("created_at", { ascending: false });
-  return data || [];
+  const q = query(
+    collection(db, "journeys"),
+    where("user_id", "==", userId),
+    where("is_active", "==", true),
+    orderBy("created_at", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 export async function getJourneyFull(journeyId: string) {
-  const { data } = await supabase.rpc("get_journey_full", { j_id: journeyId });
-  return data;
+  const journeySnap = await getDoc(doc(db, "journeys", journeyId));
+  if (!journeySnap.exists()) return null;
+  const journey = { id: journeySnap.id, ...journeySnap.data() };
+
+  const milestones = await getMilestones(journeyId);
+  const journalEntries = await getJournalEntries(journeyId);
+
+  return { ...journey, milestones, journal_entries: journalEntries };
 }
 
 // ============ MILESTONES ============
 
 export async function getMilestones(journeyId: string) {
-  const { data } = await supabase
-    .from("milestones")
-    .select("*, milestone_completions(*)")
-    .eq("journey_id", journeyId)
-    .order("sort_order");
-  return data || [];
+  const q = query(
+    collection(db, "milestones"),
+    where("journey_id", "==", journeyId),
+    orderBy("sort_order")
+  );
+  const snap = await getDocs(q);
+  const milestones = [];
+
+  for (const d of snap.docs) {
+    const ms = { id: d.id, ...d.data() };
+    // Get completions for this milestone
+    const compQ = query(
+      collection(db, "milestone_completions"),
+      where("milestone_id", "==", d.id)
+    );
+    const compSnap = await getDocs(compQ);
+    (ms as any).milestone_completions = compSnap.docs.map((c) => ({ id: c.id, ...c.data() }));
+    milestones.push(ms);
+  }
+
+  return milestones;
 }
 
 export async function completeMilestone(milestoneId: string, journeyId: string, userId: string) {
-  return supabase.from("milestone_completions").insert({
+  const ref = await addDoc(collection(db, "milestone_completions"), {
     milestone_id: milestoneId,
     journey_id: journeyId,
     completed_by: userId,
-  }).select().single();
+    created_at: serverTimestamp(),
+  });
+  const snap = await getDoc(ref);
+  return { data: { id: ref.id, ...snap.data() }, error: null };
 }
 
 export async function uncompleteMilestone(milestoneId: string) {
-  return supabase.from("milestone_completions").delete().eq("milestone_id", milestoneId).select();
+  const q = query(
+    collection(db, "milestone_completions"),
+    where("milestone_id", "==", milestoneId)
+  );
+  const snap = await getDocs(q);
+  for (const d of snap.docs) {
+    await deleteDoc(d.ref);
+  }
+  return { data: null, error: null };
 }
 
 // ============ JOURNAL ============
@@ -139,42 +199,78 @@ export async function addJournalEntry(params: {
   mood?: string;
   note?: string;
 }) {
-  return supabase.from("journal_entries").insert({
+  const ref = await addDoc(collection(db, "journal_entries"), {
     journey_id: params.journeyId,
     user_id: params.userId,
     weight: params.weight || null,
     mood: params.mood || null,
     note: params.note || null,
-  }).select().single();
+    created_at: serverTimestamp(),
+  });
+  const snap = await getDoc(ref);
+  return { data: { id: ref.id, ...snap.data() }, error: null };
 }
 
 export async function getJournalEntries(journeyId: string) {
-  const { data } = await supabase
-    .from("journal_entries")
-    .select("*")
-    .eq("journey_id", journeyId)
-    .order("created_at", { ascending: false })
-    .limit(100);
-  return data || [];
+  const q = query(
+    collection(db, "journal_entries"),
+    where("journey_id", "==", journeyId),
+    orderBy("created_at", "desc"),
+    limit(100)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 export async function deleteJournalEntry(entryId: string) {
-  return supabase.from("journal_entries").delete().eq("id", entryId);
+  await deleteDoc(doc(db, "journal_entries", entryId));
+  return { error: null };
 }
 
 // ============ PARTNERSHIPS ============
 
-export async function joinByInviteCode(code: string) {
-  return supabase.rpc("join_journey_by_code", { code: code.toUpperCase() });
+export async function joinByInviteCode(code: string): Promise<{ data: any; error: any }> {
+  // For now, query invite_codes collection to find matching journey
+  const q = query(
+    collection(db, "invite_codes"),
+    where("code", "==", code.toUpperCase()),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return { data: null, error: { message: "Invalid invite code" } };
+
+  const invite = snap.docs[0].data();
+  const userId = auth.currentUser?.uid;
+  if (!userId) return { data: null, error: { message: "Not logged in" } };
+
+  await addDoc(collection(db, "partnerships"), {
+    journey_id: invite.journey_id,
+    partner_id: userId,
+    status: "accepted",
+    created_at: serverTimestamp(),
+  });
+
+  return { data: true, error: null };
 }
 
 export async function getPartnerJourneys(userId: string) {
-  const { data } = await supabase
-    .from("partnerships")
-    .select("*, journeys(*)")
-    .eq("partner_id", userId)
-    .eq("status", "accepted");
-  return data || [];
+  const q = query(
+    collection(db, "partnerships"),
+    where("partner_id", "==", userId),
+    where("status", "==", "accepted")
+  );
+  const snap = await getDocs(q);
+  const results = [];
+
+  for (const d of snap.docs) {
+    const partnership = d.data();
+    const journeySnap = await getDoc(doc(db, "journeys", partnership.journey_id));
+    if (journeySnap.exists()) {
+      results.push({ id: d.id, ...partnership, journeys: { id: journeySnap.id, ...journeySnap.data() } });
+    }
+  }
+
+  return results;
 }
 
 // ============ REALTIME ============
@@ -187,21 +283,46 @@ export function subscribeToJourney(
     onJournalEntry?: (data: any) => void;
   }
 ) {
-  const channel = supabase
-    .channel(`journey-${journeyId}`)
-    .on("postgres_changes", {
-      event: "INSERT", schema: "public", table: "milestone_completions",
-      filter: `journey_id=eq.${journeyId}`,
-    }, (payload) => callbacks.onMilestoneCompleted?.(payload.new))
-    .on("postgres_changes", {
-      event: "DELETE", schema: "public", table: "milestone_completions",
-      filter: `journey_id=eq.${journeyId}`,
-    }, (payload) => callbacks.onMilestoneUncompleted?.(payload.old))
-    .on("postgres_changes", {
-      event: "INSERT", schema: "public", table: "journal_entries",
-      filter: `journey_id=eq.${journeyId}`,
-    }, (payload) => callbacks.onJournalEntry?.(payload.new))
-    .subscribe();
+  const unsubs: (() => void)[] = [];
 
-  return () => supabase.removeChannel(channel);
+  // Listen for milestone completions
+  const compQ = query(
+    collection(db, "milestone_completions"),
+    where("journey_id", "==", journeyId)
+  );
+  let firstCompSnap = true;
+  unsubs.push(
+    onSnapshot(compQ, (snap) => {
+      if (firstCompSnap) { firstCompSnap = false; return; }
+      snap.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          callbacks.onMilestoneCompleted?.({ id: change.doc.id, ...change.doc.data() });
+        }
+        if (change.type === "removed") {
+          callbacks.onMilestoneUncompleted?.({ id: change.doc.id, ...change.doc.data() });
+        }
+      });
+    })
+  );
+
+  // Listen for journal entries
+  const journalQ = query(
+    collection(db, "journal_entries"),
+    where("journey_id", "==", journeyId),
+    orderBy("created_at", "desc"),
+    limit(1)
+  );
+  let firstJournalSnap = true;
+  unsubs.push(
+    onSnapshot(journalQ, (snap) => {
+      if (firstJournalSnap) { firstJournalSnap = false; return; }
+      snap.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          callbacks.onJournalEntry?.({ id: change.doc.id, ...change.doc.data() });
+        }
+      });
+    })
+  );
+
+  return () => unsubs.forEach((u) => u());
 }

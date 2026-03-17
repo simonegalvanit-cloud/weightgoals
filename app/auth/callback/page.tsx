@@ -1,18 +1,19 @@
 "use client";
 import { useEffect } from "react";
-import { createClient } from "@/lib/supabase";
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation";
 
 export default function AuthCallback() {
   const router = useRouter();
 
   useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
         router.push("/");
       }
     });
+    return () => unsubscribe();
   }, [router]);
 
   return (
