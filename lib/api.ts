@@ -127,7 +127,7 @@ export async function completeMilestone(milestoneId: string, journeyId: string, 
 }
 
 export async function uncompleteMilestone(milestoneId: string) {
-  return supabase.from("milestone_completions").delete().eq("milestone_id", milestoneId);
+  return supabase.from("milestone_completions").delete().eq("milestone_id", milestoneId).select();
 }
 
 // ============ JOURNAL ============

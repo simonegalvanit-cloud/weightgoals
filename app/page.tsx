@@ -26,6 +26,9 @@ export default function Home() {
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signup");
   const [authForm, setAuthForm] = useState({ email: "", password: "", name: "" });
   const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [emojiPicker, setEmojiPicker] = useState<number | null>(null);
   const [setupData, setSetupData] = useState({ name: "", startKg: "", goalKg: "", theme: "pink", milestones: [] as any[] });
   const tRef = useRef<any>(null);
   const fwRef = useRef<any>(null);
@@ -108,16 +111,19 @@ export default function Home() {
   // ============ AUTH ============
   const handleAuth = async () => {
     setAuthError("");
-    if (authMode === "signup") {
-      const { error } = await api.signUp(authForm.email, authForm.password, authForm.name);
-      if (error) { setAuthError(error.message); return; }
-      // Supabase sends confirmation email by default. For dev, you can disable this in Auth settings.
-      sToast("Check your email to confirm!");
-    } else {
-      const { error } = await api.signIn(authForm.email, authForm.password);
-      if (error) { setAuthError(error.message); return; }
+    setAuthLoading(true);
+    try {
+      if (authMode === "signup") {
+        const { error } = await api.signUp(authForm.email, authForm.password, authForm.name);
+        if (error) { setAuthError(error.message); return; }
+        setEmailSent(true);
+      } else {
+        const { error } = await api.signIn(authForm.email, authForm.password);
+        if (error) { setAuthError(error.message); return; }
+      }
+    } finally {
+      setAuthLoading(false);
     }
-    // Auth state change listener handles the rest
   };
 
   // ============ SETUP ============
@@ -173,9 +179,11 @@ export default function Home() {
     if (wasCompleted && i < milestones.length - 1 && mState[i + 1].completed) { sToast(`uncheck ${milestones[i + 1].target_kg}kg first`); return; }
 
     if (wasCompleted) {
-      await api.uncompleteMilestone(m.id);
+      const { error } = await api.uncompleteMilestone(m.id);
+      if (error) { sToast("Failed to uncheck — try again"); return; }
     } else {
-      await api.completeMilestone(m.id, journey.id, user.id);
+      const { error } = await api.completeMilestone(m.id, journey.id, user.id);
+      if (error) { sToast("Failed to check — try again"); return; }
       setJustChecked(i);
       setCeleb({ ...m, idx: i });
       sToast(`${m.target_kg}kg — reward unlocked`);
@@ -260,6 +268,21 @@ export default function Home() {
           <div style={{ fontSize: 11, letterSpacing: 4, color: T.txt3, textTransform: "uppercase", marginBottom: 32 }}>reward your journey</div>
 
           <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "24px 20px", marginBottom: 16, textAlign: "left" }}>
+            {emailSent ? (
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                <div style={{ fontSize: 40, marginBottom: 16 }}>📧</div>
+                <div style={{ fontFamily: f1, fontSize: 22, fontStyle: "italic", marginBottom: 10 }}>Check your email</div>
+                <div style={{ fontSize: 13, color: T.txt2, lineHeight: 1.6, marginBottom: 20 }}>
+                  We sent a confirmation link to<br />
+                  <strong style={{ color: T.txt }}>{authForm.email}</strong><br />
+                  Click the link to activate your account.
+                </div>
+                <div style={{ fontSize: 11, color: T.txt3 }}>Didn't get it? Check your spam folder.</div>
+                <div style={{ marginTop: 16 }}>
+                  <Btn onClick={() => { setEmailSent(false); setAuthForm({ email: "", password: "", name: "" }); }}>Back to sign in</Btn>
+                </div>
+              </div>
+            ) : (<>
             <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: `1px solid ${T.brd}` }}>
               {(["signup", "signin"] as const).map(m => (
                 <button key={m} onClick={() => { setAuthMode(m); setAuthError(""); }} style={{ flex: 1, fontFamily: f2, background: "none", border: "none", padding: "10px", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", color: authMode === m ? T.txt : T.txt3, fontWeight: authMode === m ? 500 : 400, cursor: "pointer", borderBottom: authMode === m ? `1.5px solid ${T.accent}` : "1.5px solid transparent", marginBottom: -1 }}>{m === "signup" ? "Sign up" : "Sign in"}</button>
@@ -269,9 +292,10 @@ export default function Home() {
             <Input label="Email" type="email" placeholder="you@email.com" value={authForm.email} onChange={(e: any) => setAuthForm(p => ({ ...p, email: e.target.value }))} />
             <Input label="Password" type="password" placeholder="••••••••" value={authForm.password} onChange={(e: any) => setAuthForm(p => ({ ...p, password: e.target.value }))} />
             {authError && <div style={{ fontSize: 12, color: "#c44", marginBottom: 12 }}>{authError}</div>}
-            <Btn primary onClick={handleAuth} disabled={!authForm.email || !authForm.password || (authMode === "signup" && !authForm.name)}>
-              {authMode === "signup" ? "Create account" : "Sign in"}
+            <Btn primary onClick={handleAuth} disabled={authLoading || !authForm.email || !authForm.password || (authMode === "signup" && !authForm.name)}>
+              {authLoading ? "Please wait..." : authMode === "signup" ? "Create account" : "Sign in"}
             </Btn>
+            </>)}
           </div>
 
           <Btn onClick={() => setScreen("join")} style={{ marginTop: 8 }}>I have an invite code</Btn>
@@ -335,8 +359,22 @@ export default function Home() {
             <span style={{ fontFamily: f1, fontSize: 17, fontWeight: 500, minWidth: 48 }}>{m.kg} kg</span>
             <input placeholder="Reward..." value={m.rw} onChange={e => { const ms = [...setupData.milestones]; ms[i] = { ...ms[i], rw: e.target.value }; setSetupData(p => ({ ...p, milestones: ms })); }}
               style={{ flex: 1, fontFamily: f2, fontSize: 13, padding: "8px 10px", border: `1px solid ${T.brd}`, borderRadius: 10, background: T.bg, color: T.txt, outline: "none" }} />
-            <input placeholder="🎯" value={m.e} onChange={e => { const ms = [...setupData.milestones]; ms[i] = { ...ms[i], e: e.target.value }; setSetupData(p => ({ ...p, milestones: ms })); }}
-              style={{ width: 36, fontSize: 16, padding: "6px", border: `1px solid ${T.brd}`, borderRadius: 8, background: T.bg, textAlign: "center", outline: "none" }} />
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setEmojiPicker(emojiPicker === i ? null : i)}
+                style={{ width: 36, height: 36, fontSize: 16, padding: 0, border: `1px solid ${T.brd}`, borderRadius: 8, background: T.bg, textAlign: "center", cursor: "pointer", lineHeight: "36px" }}>
+                {m.e}
+              </button>
+              {emojiPicker === i && (
+                <div style={{ position: "absolute", right: 0, top: 40, background: T.card, border: `1px solid ${T.brd}`, borderRadius: 12, padding: 8, display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 4, zIndex: 100, boxShadow: `0 4px 20px rgba(0,0,0,.12)` }}>
+                  {["🎯", "✨", "💎", "🌸", "🎀", "💖", "⭐", "🌟", "💫", "🎉", "🏆", "👑", "🦋", "🌺", "🍰", "🧁", "💅", "👗", "👠", "🛍️", "💄", "🎁", "🥂", "🍾"].map(em => (
+                    <button key={em} onClick={() => { const ms = [...setupData.milestones]; ms[i] = { ...ms[i], e: em }; setSetupData(p => ({ ...p, milestones: ms })); setEmojiPicker(null); }}
+                      style={{ width: 32, height: 32, fontSize: 18, border: "none", background: m.e === em ? T.accent + "22" : "transparent", borderRadius: 6, cursor: "pointer", lineHeight: "32px", padding: 0 }}>
+                      {em}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ))}
         <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "16px 24px", background: T.bg }}>
