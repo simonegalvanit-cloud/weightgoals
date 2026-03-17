@@ -29,6 +29,7 @@ export default function Home() {
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [emojiPicker, setEmojiPicker] = useState<number | null>(null);
+  const [creating, setCreating] = useState(false);
   const [setupData, setSetupData] = useState({ name: "", startKg: "", goalKg: "", theme: "pink", milestones: [] as any[] });
   const tRef = useRef<any>(null);
   const fwRef = useRef<any>(null);
@@ -123,26 +124,34 @@ export default function Home() {
   // ============ SETUP ============
   const finishSetup = async () => {
     if (!user) { sToast("Not signed in"); setScreen("welcome"); return; }
-    await api.updateUserProfile(user.uid, { name: setupData.name, theme: setupData.theme });
-    const { journey: j, error } = await api.createJourney({
-      userId: user.uid,
-      title: `${setupData.name}'s journey`,
-      startWeight: parseFloat(setupData.startKg),
-      goalWeight: parseFloat(setupData.goalKg),
-      milestones: setupData.milestones.map(m => ({
-        targetKg: m.kg,
-        rewardText: m.rw,
-        emoji1: m.e,
-        emoji2: m.e2 || "✨",
-        themeMsg: m.msg || "",
-      })),
-    });
-    if (error || !j) { sToast("Error creating journey"); return; }
-    setJourney(j);
-    setProfile(await api.getProfile(user.uid));
-    const ms = await api.getMilestones(j.id);
-    setMilestones(ms);
-    setScreen("setup-done");
+    setCreating(true);
+    try {
+      await api.updateUserProfile(user.uid, { name: setupData.name, theme: setupData.theme });
+      const { journey: j, error } = await api.createJourney({
+        userId: user.uid,
+        title: `${setupData.name}'s journey`,
+        startWeight: parseFloat(setupData.startKg),
+        goalWeight: parseFloat(setupData.goalKg),
+        milestones: setupData.milestones.map(m => ({
+          targetKg: m.kg,
+          rewardText: m.rw,
+          emoji1: m.e,
+          emoji2: m.e2 || "✨",
+          themeMsg: m.msg || "",
+        })),
+      });
+      if (error || !j) { sToast("Error creating journey"); return; }
+      setJourney(j);
+      setProfile(await api.getProfile(user.uid));
+      const ms = await api.getMilestones(j.id);
+      setMilestones(ms);
+      setScreen("setup-done");
+    } catch (err: any) {
+      console.error("finishSetup error:", err);
+      sToast(err?.message || "Failed to create journey");
+    } finally {
+      setCreating(false);
+    }
   };
 
   // ============ MILESTONE LOGIC ============
@@ -410,7 +419,7 @@ export default function Home() {
             </div>
           ))}
         </div>
-        <Btn primary onClick={finishSetup}>Create my journey</Btn>
+        <Btn primary onClick={finishSetup} disabled={creating}>{creating ? "Creating..." : "Create my journey"}</Btn>
       </div>
     </div>
   );
