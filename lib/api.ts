@@ -90,7 +90,7 @@ export async function getProfile(userId: string): Promise<any> {
 }
 
 export async function updateUserProfile(userId: string, updates: { name?: string; theme?: string }) {
-  await updateDoc(doc(db, "profiles", userId), updates);
+  await setDoc(doc(db, "profiles", userId), updates, { merge: true });
   const snap = await getDoc(doc(db, "profiles", userId));
   return { data: snap.exists() ? { id: snap.id, ...snap.data() } : null, error: null };
 }
