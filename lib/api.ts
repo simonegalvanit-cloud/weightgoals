@@ -27,6 +27,17 @@ import {
   Timestamp,
 } from "firebase/firestore";
 
+// ============ HELPERS ============
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out — check Firestore security rules in Firebase console`)), ms)
+    ),
+  ]);
+}
+
 // ============ AUTH ============
 
 export async function signUp(email: string, password: string, name: string) {
@@ -90,7 +101,11 @@ export async function getProfile(userId: string): Promise<any> {
 }
 
 export async function updateUserProfile(userId: string, updates: { name?: string; theme?: string }) {
-  await setDoc(doc(db, "profiles", userId), updates, { merge: true });
+  await withTimeout(
+    setDoc(doc(db, "profiles", userId), updates, { merge: true }),
+    10000,
+    "Updating profile"
+  );
   const snap = await getDoc(doc(db, "profiles", userId));
   return { data: snap.exists() ? { id: snap.id, ...snap.data() } : null, error: null };
 }
@@ -115,37 +130,49 @@ export async function createJourney(params: {
   let inviteCode = "";
   for (let i = 0; i < 6; i++) inviteCode += chars[Math.floor(Math.random() * chars.length)];
 
-  const journeyRef = await addDoc(collection(db, "journeys"), {
-    user_id: params.userId,
-    title: params.title,
-    start_weight: params.startWeight,
-    goal_weight: params.goalWeight,
-    invite_code: inviteCode,
-    is_active: true,
-    created_at: serverTimestamp(),
-  });
+  const journeyRef = await withTimeout(
+    addDoc(collection(db, "journeys"), {
+      user_id: params.userId,
+      title: params.title,
+      start_weight: params.startWeight,
+      goal_weight: params.goalWeight,
+      invite_code: inviteCode,
+      is_active: true,
+      created_at: serverTimestamp(),
+    }),
+    10000,
+    "Creating journey"
+  );
 
   // Store in invite_codes collection so partners can look it up
-  await setDoc(doc(db, "invite_codes", inviteCode), {
-    code: inviteCode,
-    journey_id: journeyRef.id,
-    user_id: params.userId,
-    created_at: serverTimestamp(),
-  });
+  await withTimeout(
+    setDoc(doc(db, "invite_codes", inviteCode), {
+      code: inviteCode,
+      journey_id: journeyRef.id,
+      user_id: params.userId,
+      created_at: serverTimestamp(),
+    }),
+    10000,
+    "Saving invite code"
+  );
 
   const journey = { id: journeyRef.id, user_id: params.userId, title: params.title, start_weight: params.startWeight, goal_weight: params.goalWeight, invite_code: inviteCode, is_active: true };
 
   for (let i = 0; i < params.milestones.length; i++) {
     const m = params.milestones[i];
-    await addDoc(collection(db, "milestones"), {
-      journey_id: journeyRef.id,
-      target_kg: m.targetKg,
-      reward_text: m.rewardText,
-      emoji_1: m.emoji1,
-      emoji_2: m.emoji2,
-      theme_msg: m.themeMsg,
-      sort_order: i,
-    });
+    await withTimeout(
+      addDoc(collection(db, "milestones"), {
+        journey_id: journeyRef.id,
+        target_kg: m.targetKg,
+        reward_text: m.rewardText,
+        emoji_1: m.emoji1,
+        emoji_2: m.emoji2,
+        theme_msg: m.themeMsg,
+        sort_order: i,
+      }),
+      10000,
+      "Saving milestone"
+    );
   }
 
   return { journey, error: null };
