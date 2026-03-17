@@ -112,16 +112,30 @@ export async function createJourney(params: {
     themeMsg: string;
   }>;
 }) {
+  // Generate a unique 6-char invite code
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let inviteCode = "";
+  for (let i = 0; i < 6; i++) inviteCode += chars[Math.floor(Math.random() * chars.length)];
+
   const journeyRef = await addDoc(collection(db, "journeys"), {
     user_id: params.userId,
     title: params.title,
     start_weight: params.startWeight,
     goal_weight: params.goalWeight,
+    invite_code: inviteCode,
     is_active: true,
     created_at: serverTimestamp(),
   });
 
-  const journey = { id: journeyRef.id, user_id: params.userId, title: params.title, start_weight: params.startWeight, goal_weight: params.goalWeight, is_active: true };
+  // Store in invite_codes collection so partners can look it up
+  await setDoc(doc(db, "invite_codes", inviteCode), {
+    code: inviteCode,
+    journey_id: journeyRef.id,
+    user_id: params.userId,
+    created_at: serverTimestamp(),
+  });
+
+  const journey = { id: journeyRef.id, user_id: params.userId, title: params.title, start_weight: params.startWeight, goal_weight: params.goalWeight, invite_code: inviteCode, is_active: true };
 
   for (let i = 0; i < params.milestones.length; i++) {
     const m = params.milestones[i];
