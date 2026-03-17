@@ -10,7 +10,7 @@ export default function AuthCallback() {
     const supabase = createClient();
     supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") {
-        router.push("/journey");
+        router.push("/");
       }
     });
   }, [router]);
