@@ -429,7 +429,7 @@ export default function Home() {
       </div>}
 
       {/* Toast */}
-      {toast && <div style={{ position: "fixed", top: 16, left: "50%", zIndex: 10000, background: "rgba(255,255,255,.94)", border: `1px solid ${T.accentL}`, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", color: T.accent, padding: "11px 26px", borderRadius: 100, fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", boxShadow: `0 8px 32px ${T.accent}1f`, animation: "toastSlide .55s cubic-bezier(.16,1,.3,1) forwards" }}>🎉 {toast}</div>}
+      {toast && <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 10000, background: "rgba(255,255,255,.94)", border: `1px solid ${T.accentL}`, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", color: T.accent, padding: "11px 26px", borderRadius: 100, fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", boxShadow: `0 8px 32px ${T.accent}1f`, animation: "toastSlide .55s cubic-bezier(.16,1,.3,1) forwards" }}>🎉 {toast}</div>}
 
       <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 0 50px" }}>
         {/* Header */}

@@ -12,10 +12,13 @@ const supabase = new Proxy({} as ReturnType<typeof createClient>, {
 // ============ AUTH ============
 
 export async function signUp(email: string, password: string, name: string) {
+  const redirectTo = typeof window !== "undefined"
+    ? `${window.location.origin}/auth/callback`
+    : undefined;
   return supabase.auth.signUp({
     email,
     password,
-    options: { data: { name } },
+    options: { data: { name }, emailRedirectTo: redirectTo },
   });
 }
 
