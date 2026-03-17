@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { auth } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signInWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
 import * as api from "@/lib/api";
 import { THEMES, MOOD_OPTIONS, FONTS } from "@/lib/themes";
 
@@ -38,6 +38,13 @@ export default function Home() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        if (!firebaseUser.emailVerified) {
+          // Don't let unverified users in — sign them out
+          await api.signOut();
+          setUser(null);
+          setScreen("welcome");
+          return;
+        }
         setUser(firebaseUser);
         const prof = await api.getProfile(firebaseUser.uid);
         setProfile(prof);
@@ -109,10 +116,19 @@ export default function Home() {
     try {
       if (authMode === "signup") {
         await api.signUp(authForm.email, authForm.password, authForm.name);
+        // Sign out immediately — they need to verify email first
+        await api.signOut();
         setEmailSent(true);
       } else {
         const { error } = await api.signIn(authForm.email, authForm.password);
         if (error) { setAuthError(error.message); return; }
+        // Check if email is verified
+        const currentUser = auth.currentUser;
+        if (currentUser && !currentUser.emailVerified) {
+          await api.signOut();
+          setAuthError("Please verify your email before signing in. Check your inbox for a verification link.");
+          return;
+        }
         // Firebase onAuthStateChanged will handle the rest
       }
     } catch (err: any) {
@@ -266,17 +282,32 @@ export default function Home() {
           <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "24px 20px", marginBottom: 16, textAlign: "left" }}>
             {emailSent ? (
               <div style={{ textAlign: "center", padding: "20px 0" }}>
-                <div style={{ fontSize: 40, marginBottom: 16 }}>📧</div>
-                <div style={{ fontFamily: f1, fontSize: 22, fontStyle: "italic", marginBottom: 10 }}>Check your email</div>
-                <div style={{ fontSize: 13, color: T.txt2, lineHeight: 1.6, marginBottom: 20 }}>
-                  We sent a confirmation link to<br />
-                  <strong style={{ color: T.txt }}>{authForm.email}</strong><br />
-                  Click the link to activate your account.
+                <div style={{ fontSize: 40, marginBottom: 16 }}>📬</div>
+                <div style={{ fontFamily: f1, fontSize: 22, fontStyle: "italic", marginBottom: 10 }}>Almost there!</div>
+                <div style={{ fontSize: 13, color: T.txt2, lineHeight: 1.6, marginBottom: 8 }}>
+                  We sent a verification link to
                 </div>
-                <div style={{ fontSize: 11, color: T.txt3 }}>Didn't get it? Check your spam folder.</div>
-                <div style={{ marginTop: 16 }}>
-                  <Btn onClick={() => { setEmailSent(false); setAuthForm({ email: "", password: "", name: "" }); }}>Back to sign in</Btn>
+                <div style={{ fontSize: 14, fontWeight: 600, color: T.txt, marginBottom: 16 }}>{authForm.email}</div>
+                <div style={{ fontSize: 13, color: T.txt2, lineHeight: 1.8, marginBottom: 20, background: T.bg, borderRadius: 12, padding: "14px 16px" }}>
+                  <div style={{ marginBottom: 6 }}>1. Open your email inbox</div>
+                  <div style={{ marginBottom: 6 }}>2. Click the verification link</div>
+                  <div>3. Come back here and sign in</div>
                 </div>
+                <div style={{ fontSize: 11, color: T.txt3, marginBottom: 16 }}>
+                  Don't see it? Check your spam or junk folder.
+                </div>
+                <Btn onClick={async () => {
+                  try {
+                    const cred = await signInWithEmailAndPassword(auth, authForm.email, authForm.password);
+                    await sendEmailVerification(cred.user);
+                    await api.signOut();
+                    setAuthError("");
+                    alert("Verification email resent! Check your inbox.");
+                  } catch {
+                    setAuthError("Could not resend. Please try again later.");
+                  }
+                }} style={{ marginBottom: 10 }}>Resend verification email</Btn>
+                <Btn onClick={() => { setEmailSent(false); setAuthMode("signin"); setAuthForm({ email: "", password: "", name: "" }); setAuthError(""); }}>Back to sign in</Btn>
               </div>
             ) : (<>
             <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: `1px solid ${T.brd}` }}>
