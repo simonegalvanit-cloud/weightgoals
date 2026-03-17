@@ -33,20 +33,20 @@ export default function Home() {
   const [setupData, setSetupData] = useState({ name: "", startKg: "", goalKg: "", theme: "pink", milestones: [] as any[] });
   const tRef = useRef<any>(null);
   const fwRef = useRef<any>(null);
-  const signingUpRef = useRef(false);
+  const authBusyRef = useRef(false);
 
   // ============ INIT ============
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Skip verification check during signup — signUp() will handle sign-out
-        if (!firebaseUser.emailVerified && !signingUpRef.current) {
+        // Skip if handleAuth/signUp is actively running — it handles sign-out itself
+        if (authBusyRef.current) return;
+        if (!firebaseUser.emailVerified) {
           await api.signOut();
           setUser(null);
           setScreen("welcome");
           return;
         }
-        if (!firebaseUser.emailVerified) return;
         setUser(firebaseUser);
         const prof = await api.getProfile(firebaseUser.uid);
         setProfile(prof);
@@ -115,20 +115,15 @@ export default function Home() {
   const handleAuth = async () => {
     setAuthError("");
     setAuthLoading(true);
+    authBusyRef.current = true;
     try {
       if (authMode === "signup") {
-        signingUpRef.current = true;
-        try {
-          await api.signUp(authForm.email, authForm.password, authForm.name);
-          await api.signOut();
-        } finally {
-          signingUpRef.current = false;
-        }
+        await api.signUp(authForm.email, authForm.password, authForm.name);
+        await api.signOut();
         setEmailSent(true);
       } else {
         const { error } = await api.signIn(authForm.email, authForm.password);
         if (error) { setAuthError(error.message); return; }
-        // Check if email is verified
         const currentUser = auth.currentUser;
         if (currentUser && !currentUser.emailVerified) {
           await api.signOut();
@@ -140,6 +135,7 @@ export default function Home() {
     } catch (err: any) {
       setAuthError(err.message || "Something went wrong");
     } finally {
+      authBusyRef.current = false;
       setAuthLoading(false);
     }
   };
