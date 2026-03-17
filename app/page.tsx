@@ -109,7 +109,7 @@ export default function Home() {
     try {
       if (authMode === "signup") {
         await api.signUp(authForm.email, authForm.password, authForm.name);
-        // Firebase onAuthStateChanged will handle the rest
+        setEmailSent(true);
       } else {
         const { error } = await api.signIn(authForm.email, authForm.password);
         if (error) { setAuthError(error.message); return; }

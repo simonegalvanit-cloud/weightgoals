@@ -5,6 +5,7 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
   updateProfile,
+  sendEmailVerification,
   type User,
 } from "firebase/auth";
 import {
@@ -30,6 +31,7 @@ import {
 export async function signUp(email: string, password: string, name: string) {
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(cred.user, { displayName: name });
+  await sendEmailVerification(cred.user);
   // Create profile doc
   await setDoc(doc(db, "profiles", cred.user.uid), {
     id: cred.user.uid,
