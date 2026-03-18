@@ -79,10 +79,13 @@ export default function Home() {
             setMilestones(ms);
             const je = await api.getJournalEntries(j.id);
             setJournal(je);
-            const claims = await api.getRewardClaims(j.id, ms.map((m: any) => m.id));
-            setRewardClaims(claims);
-            const rxns = await api.getReactionsForJourney(j.id, je.map((e: any) => e.id));
-            setReactions(rxns);
+            // Load optional data (don't block app if rules aren't deployed yet)
+            try {
+              const claims = await api.getRewardClaims(j.id, ms.map((m: any) => m.id));
+              setRewardClaims(claims);
+              const rxns = await api.getReactionsForJourney(j.id, je.map((e: any) => e.id));
+              setReactions(rxns);
+            } catch { /* rules not deployed yet — features will work once rules are updated */ }
             setScreen("main");
           } else if (partnerJourneys.length > 0) {
             // Partner joined someone else's journey — load that journey
@@ -99,10 +102,12 @@ export default function Home() {
             setMilestones(ms);
             const je = await api.getJournalEntries(fullJourney.id);
             setJournal(je);
-            const claims = await api.getRewardClaims(fullJourney.id, ms.map((m: any) => m.id));
-            setRewardClaims(claims);
-            const rxns = await api.getReactionsForJourney(fullJourney.id, je.map((e: any) => e.id));
-            setReactions(rxns);
+            try {
+              const claims = await api.getRewardClaims(fullJourney.id, ms.map((m: any) => m.id));
+              setRewardClaims(claims);
+              const rxns = await api.getReactionsForJourney(fullJourney.id, je.map((e: any) => e.id));
+              setReactions(rxns);
+            } catch { /* rules not deployed yet */ }
             setScreen("main");
           } else {
             setSetupData(p => ({ ...p, name: prof?.name || "" }));
