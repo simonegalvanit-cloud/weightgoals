@@ -34,6 +34,10 @@ export default function Home() {
   const [creating, setCreating] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
+  const [editingMilestones, setEditingMilestones] = useState(false);
+  const [editMs, setEditMs] = useState<any[]>([]);
+  const [savingMs, setSavingMs] = useState(false);
+  const [editEmojiPicker, setEditEmojiPicker] = useState<number | null>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [joinLoading, setJoinLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -364,19 +368,52 @@ export default function Home() {
   // ============ SHARED UI ============
 
   // ============ LOADING ============
+  const Skel = ({ w, h, r, s }: { w: string | number; h: number; r?: number; s?: any }) => (
+    <div style={{ width: w, height: h, borderRadius: r ?? 10, background: T.brd, animation: "skeletonPulse 1.5s ease-in-out infinite", ...s }} />
+  );
+
   if (screen === "loading") return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg }}>
-      <div style={{ textAlign: "center" }}>
-        {loadError ? <>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>😵‍💫</div>
-          <div style={{ fontSize: 13, color: T.txt2, marginBottom: 6 }}>Something went wrong</div>
-          <div style={{ fontSize: 10, color: T.txt3, marginBottom: 16, maxWidth: 260 }}>{loadError}</div>
-          <button onClick={() => { setLoadError(null); window.location.reload(); }} style={{ fontFamily: f2, fontSize: 13, padding: "10px 24px", borderRadius: 12, border: `1px solid ${T.brd}`, background: T.card, color: T.txt, cursor: "pointer" }}>Try again</button>
-        </> : <>
-          <div style={{ fontSize: 32, animation: "float 2s ease-in-out infinite", marginBottom: 12 }}>🎀</div>
-          <div style={{ fontSize: 10, letterSpacing: 3, color: T.txt3, textTransform: "uppercase" }}>loading</div>
-        </>}
-      </div>
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: f2 }}>
+      {loadError ? (
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>😵‍💫</div>
+            <div style={{ fontSize: 13, color: T.txt2, marginBottom: 6 }}>Something went wrong</div>
+            <div style={{ fontSize: 10, color: T.txt3, marginBottom: 16, maxWidth: 260 }}>{loadError}</div>
+            <button onClick={() => { setLoadError(null); window.location.reload(); }} style={{ fontFamily: f2, fontSize: 13, padding: "10px 24px", borderRadius: 12, border: `1px solid ${T.brd}`, background: T.card, color: T.txt, cursor: "pointer" }}>Try again</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 14px" }}>
+          {/* Header skeleton */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 0 12px" }}>
+            <Skel w={80} h={10} r={4} />
+            <Skel w={180} h={28} r={6} s={{ marginTop: 10 }} />
+            <Skel w={160} h={10} r={4} s={{ marginTop: 10 }} />
+          </div>
+          {/* Tabs skeleton */}
+          <div style={{ display: "flex", gap: 20, justifyContent: "center", padding: "10px 0 18px" }}>
+            {[60, 55, 50, 55].map((w, i) => <Skel key={i} w={w} h={12} r={4} />)}
+          </div>
+          {/* Progress ring skeleton */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 0 20px" }}>
+            <Skel w={156} h={156} r={78} />
+            <div style={{ display: "flex", gap: 1, marginTop: 24, width: "100%", maxWidth: 320 }}>
+              {[1, 2, 3].map(i => <Skel key={i} w="33%" h={56} r={i === 1 ? "16px 0 0 16px" as any : i === 3 ? "0 16px 16px 0" as any : 0} />)}
+            </div>
+          </div>
+          {/* Progress bar skeleton */}
+          <div style={{ padding: "0 14px", marginBottom: 20 }}>
+            <Skel w="100%" h={5} r={3} />
+          </div>
+          {/* Milestone cards skeleton */}
+          <div style={{ padding: "0 0px" }}>
+            {[1, 2, 3].map(i => (
+              <Skel key={i} w="100%" h={70} r={16} s={{ marginBottom: 8 }} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -924,6 +961,93 @@ export default function Home() {
                 <div style={{ fontFamily: f1, fontSize: 28, fontWeight: 500, letterSpacing: 4, color: T.accent, textAlign: "center" }}>{journey.invite_code}</div>
                 <div style={{ fontSize: 10, color: T.txt3, textAlign: "center", marginTop: 4 }}>tap to copy</div>
               </div>
+            </div>}
+            {!isPartner && <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic" }}>Milestones</div>
+                {!editingMilestones ? (
+                  <button onClick={() => { setEditMs(milestones.map(m => ({ id: m.id, kg: m.target_kg, rw: m.reward_text, e: m.emoji_1, e2: m.emoji_2 || "✨", isNew: false, completed: m.milestone_completions?.length > 0 }))); setEditingMilestones(true); }}
+                    style={{ fontSize: 10, letterSpacing: 1, color: T.accent, background: "none", border: `1px solid ${T.accent}40`, padding: "5px 12px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", fontFamily: f2 }}>Edit</button>
+                ) : (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => { setEditingMilestones(false); setEditEmojiPicker(null); }}
+                      style={{ fontSize: 10, letterSpacing: 1, color: T.txt3, background: "none", border: `1px solid ${T.brd}`, padding: "5px 12px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", fontFamily: f2 }}>Cancel</button>
+                    <button disabled={savingMs} onClick={async () => {
+                      setSavingMs(true);
+                      try {
+                        const existing = new Set(editMs.filter(m => !m.isNew).map(m => m.id));
+                        // Delete removed milestones
+                        for (const m of milestones) {
+                          if (!existing.has(m.id)) await api.deleteMilestone(m.id);
+                        }
+                        // Update existing + add new
+                        for (let i = 0; i < editMs.length; i++) {
+                          const m = editMs[i];
+                          if (m.isNew) {
+                            await api.addMilestone(journey.id, { targetKg: parseFloat(m.kg), rewardText: m.rw, emoji1: m.e, emoji2: m.e2 || "✨", sortOrder: i });
+                          } else {
+                            await api.updateMilestone(m.id, { target_kg: parseFloat(m.kg), reward_text: m.rw, emoji_1: m.e, emoji_2: m.e2 || "✨", sort_order: i });
+                          }
+                        }
+                        const ms = await api.getMilestones(journey.id);
+                        setMilestones(ms);
+                        setEditingMilestones(false);
+                        setEditEmojiPicker(null);
+                        sToast("Milestones saved!");
+                      } catch (err: any) {
+                        sToast(err.message || "Failed to save");
+                      } finally {
+                        setSavingMs(false);
+                      }
+                    }} style={{ fontSize: 10, letterSpacing: 1, color: "#fff", background: T.accent, border: "none", padding: "5px 12px", borderRadius: 8, cursor: savingMs ? "default" : "pointer", textTransform: "uppercase", fontFamily: f2, opacity: savingMs ? 0.5 : 1 }}>
+                      {savingMs ? "..." : "Save"}
+                    </button>
+                  </div>
+                )}
+              </div>
+              {!editingMilestones ? (
+                <div>
+                  {milestones.map((m, i) => (
+                    <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < milestones.length - 1 ? `1px solid ${T.brd}` : "none" }}>
+                      <span style={{ fontSize: 16 }}>{m.emoji_1}</span>
+                      <span style={{ fontFamily: f1, fontSize: 15, fontWeight: 500, minWidth: 44 }}>{m.target_kg}kg</span>
+                      <span style={{ fontSize: 12, color: T.txt2, flex: 1 }}>{m.reward_text}</span>
+                      {mState[i]?.completed && <span style={{ fontSize: 10, color: T.grn }}>done</span>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div>
+                  {editMs.map((m, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, position: "relative" }}>
+                      <div style={{ position: "relative" }}>
+                        <button onClick={() => setEditEmojiPicker(editEmojiPicker === i ? null : i)}
+                          style={{ width: 34, height: 34, fontSize: 16, padding: 0, border: `1px solid ${T.brd}`, borderRadius: 8, background: T.bg, textAlign: "center", cursor: "pointer", lineHeight: "34px" }}>
+                          {m.e}
+                        </button>
+                        {editEmojiPicker === i && (
+                          <div style={{ position: "absolute", left: 0, top: 38, background: T.card, border: `1px solid ${T.brd}`, borderRadius: 12, padding: 8, display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 4, zIndex: 100, boxShadow: `0 4px 20px rgba(0,0,0,.12)` }}>
+                            {["🎯", "✨", "💎", "🌸", "🎀", "💖", "⭐", "🌟", "💫", "🎉", "🏆", "👑", "🦋", "🌺", "🍰", "🧁", "💅", "👗", "👠", "🛍️", "💄", "🎁", "🥂", "🍾"].map(em => (
+                              <button key={em} onClick={() => { const ms = [...editMs]; ms[i] = { ...ms[i], e: em }; setEditMs(ms); setEditEmojiPicker(null); }}
+                                style={{ width: 32, height: 32, fontSize: 18, border: "none", background: m.e === em ? T.accent + "22" : "transparent", borderRadius: 6, cursor: "pointer", lineHeight: "32px", padding: 0 }}>
+                                {em}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <input type="number" step="0.1" value={m.kg} onChange={e => { const ms = [...editMs]; ms[i] = { ...ms[i], kg: e.target.value }; setEditMs(ms); }}
+                        style={{ width: 58, fontFamily: f1, fontSize: 14, padding: "7px 6px", border: `1px solid ${T.brd}`, borderRadius: 8, background: T.bg, color: T.txt, outline: "none", textAlign: "center" }} />
+                      <input placeholder="Reward..." value={m.rw} onChange={e => { const ms = [...editMs]; ms[i] = { ...ms[i], rw: e.target.value }; setEditMs(ms); }}
+                        style={{ flex: 1, fontFamily: f2, fontSize: 12, padding: "7px 8px", border: `1px solid ${T.brd}`, borderRadius: 8, background: T.bg, color: T.txt, outline: "none" }} />
+                      <button onClick={() => setEditMs(editMs.filter((_, j) => j !== i))}
+                        style={{ width: 28, height: 28, fontSize: 14, border: "none", background: "none", color: T.txt3, cursor: "pointer", padding: 0, opacity: 0.6 }}>×</button>
+                    </div>
+                  ))}
+                  <button onClick={() => setEditMs([...editMs, { id: null, kg: "", rw: "", e: "🎯", e2: "✨", isNew: true, completed: false }])}
+                    style={{ width: "100%", padding: "10px", border: `1px dashed ${T.brd}`, borderRadius: 10, background: "none", color: T.txt3, fontSize: 12, cursor: "pointer", fontFamily: f2 }}>+ Add milestone</button>
+                </div>
+              )}
             </div>}
             {!isPartner && <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Theme</div>
