@@ -926,29 +926,6 @@ export default function Home() {
               </div>
             </div>}
             {!isPartner && <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
-              <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Join a partner's journey</div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input placeholder="Enter invite code" value={inviteCode} onChange={(e: any) => setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))}
-                  style={{ flex: 1, fontFamily: f1, fontSize: 16, padding: "10px 14px", border: `1px solid ${T.brd}`, borderRadius: 12, background: T.bg, color: T.txt, outline: "none", textAlign: "center", letterSpacing: 3 }} />
-                <button onClick={async () => {
-                  if (!inviteCode || inviteCode.length < 4) { sToast("Enter a valid code"); return; }
-                  setJoinLoading(true);
-                  try {
-                    const { error } = await api.joinByInviteCode(inviteCode);
-                    if (error) { sToast(error.message || "Invalid code"); return; }
-                    sToast("Connected to partner's journey!");
-                    setInviteCode("");
-                  } catch (err: any) {
-                    sToast(err.message || "Failed to join");
-                  } finally {
-                    setJoinLoading(false);
-                  }
-                }} disabled={joinLoading || inviteCode.length < 4} style={{ fontFamily: f2, padding: "10px 18px", borderRadius: 12, border: "none", background: T.accent, color: "#fff", fontSize: 12, letterSpacing: 1, textTransform: "uppercase" as const, cursor: joinLoading || inviteCode.length < 4 ? "default" : "pointer", opacity: joinLoading || inviteCode.length < 4 ? 0.4 : 1, whiteSpace: "nowrap" }}>
-                  {joinLoading ? "..." : "Join"}
-                </button>
-              </div>
-            </div>}
-            {!isPartner && <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Theme</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
                 {Object.entries(THEMES).map(([key, t]) => (
