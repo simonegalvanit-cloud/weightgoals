@@ -3,9 +3,20 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Milestone Rewards",
-  description: "Reward your journey",
+  description: "Set weight goals, earn rewards for every milestone you hit. Track your journey with friends.",
   manifest: "/manifest.json",
   icons: { icon: "/icon.png", apple: "/icon.png" },
+  openGraph: {
+    title: "Milestone Rewards",
+    description: "Set weight goals, earn rewards for every milestone you hit.",
+    siteName: "Milestone Rewards",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Milestone Rewards",
+    description: "Set weight goals, earn rewards for every milestone you hit.",
+  },
 };
 
 export const dynamic = "force-dynamic";

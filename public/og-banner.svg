@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fdf6f9"/>
+      <stop offset="50%" stop-color="#f8e4ee"/>
+      <stop offset="100%" stop-color="#f0d0e0"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e0a0b8"/>
+      <stop offset="100%" stop-color="#d4829e"/>
+    </linearGradient>
+    <linearGradient id="barTrack" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#d4829e"/>
+      <stop offset="100%" stop-color="#e0a0b8"/>
+    </linearGradient>
+    <linearGradient id="shimmer" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#d4829e" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#fff" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#d4829e" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softShadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="12" flood-color="#d4829e" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Subtle decorative circles -->
+  <circle cx="950" cy="120" r="200" fill="#d4829e" opacity="0.04"/>
+  <circle cx="180" cy="500" r="160" fill="#d4829e" opacity="0.04"/>
+  <circle cx="1050" cy="480" r="120" fill="#d4829e" opacity="0.03"/>
+
+  <!-- Left side: App info -->
+
+  <!-- App icon mini -->
+  <rect x="80" y="160" width="72" height="72" rx="18" fill="#fff" filter="url(#softShadow)"/>
+  <circle cx="116" cy="196" r="22" fill="none" stroke="#d4829e" stroke-width="3"/>
+  <polyline points="105,196 113,204 129,188" fill="none" stroke="#d4829e" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Tiny star on icon -->
+  <polygon points="140,170 143,178 151,178 145,183 147,191 140,186 133,191 135,183 129,178 137,178" fill="#f0c8d8" opacity="0.8"/>
+
+  <!-- App name -->
+  <text x="80" y="290" font-family="Georgia, 'Cormorant Garamond', serif" font-size="52" font-weight="600" font-style="italic" fill="#4a3848">Milestone</text>
+  <text x="80" y="345" font-family="Georgia, 'Cormorant Garamond', serif" font-size="52" font-weight="600" font-style="italic" fill="#4a3848">Rewards</text>
+
+  <!-- Tagline -->
+  <text x="82" y="390" font-family="'Helvetica Neue', Arial, sans-serif" font-size="18" font-weight="300" fill="#9a8898" letter-spacing="3">SET GOALS. EARN REWARDS.</text>
+
+  <!-- Progress bar section -->
+  <rect x="80" y="430" width="400" height="12" rx="6" fill="#d4829e" opacity="0.15"/>
+  <rect x="80" y="430" width="270" height="12" rx="6" fill="url(#barTrack)"/>
+
+  <!-- Milestone dots on bar -->
+  <circle cx="160" cy="436" r="4.5" fill="#fff" opacity="0.9"/>
+  <circle cx="230" cy="436" r="4.5" fill="#fff" opacity="0.9"/>
+  <circle cx="300" cy="436" r="4.5" fill="#fff" opacity="0.7"/>
+  <circle cx="380" cy="436" r="4.5" fill="#fff" opacity="0.35"/>
+  <circle cx="440" cy="436" r="4.5" fill="#fff" opacity="0.25"/>
+
+  <!-- Right side: Floating milestone cards -->
+
+  <!-- Card 1 - completed -->
+  <g filter="url(#softShadow)">
+    <rect x="620" y="130" width="280" height="80" rx="20" fill="#fff"/>
+    <circle cx="670" cy="170" r="22" fill="none" stroke="#6aaa88" stroke-width="2.5" opacity="0.8"/>
+    <polyline points="659,170 667,178 683,162" fill="none" stroke="#6aaa88" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+    <text x="710" y="163" font-family="Georgia, serif" font-size="22" font-style="italic" fill="#4a3848" text-decoration="line-through" opacity="0.5">75 kg</text>
+    <text x="710" y="188" font-family="'Helvetica Neue', Arial, sans-serif" font-size="13" fill="#9a8898">Spa day</text>
+    <text x="860" y="178" font-size="26">🎯✨</text>
+  </g>
+
+  <!-- Card 2 - completed -->
+  <g filter="url(#softShadow)">
+    <rect x="660" y="240" width="280" height="80" rx="20" fill="#fff"/>
+    <circle cx="710" cy="280" r="22" fill="none" stroke="#6aaa88" stroke-width="2.5" opacity="0.8"/>
+    <polyline points="699,280 707,288 723,272" fill="none" stroke="#6aaa88" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+    <text x="750" y="273" font-family="Georgia, serif" font-size="22" font-style="italic" fill="#4a3848" text-decoration="line-through" opacity="0.5">70 kg</text>
+    <text x="750" y="298" font-family="'Helvetica Neue', Arial, sans-serif" font-size="13" fill="#9a8898">New shoes</text>
+    <text x="900" y="288" font-size="26">🎯⭐</text>
+  </g>
+
+  <!-- Card 3 - next goal -->
+  <g filter="url(#softShadow)">
+    <rect x="700" y="350" width="280" height="80" rx="20" fill="#fff" stroke="#f0c8d8" stroke-width="1.5"/>
+    <circle cx="750" cy="390" r="22" fill="none" stroke="#d4829e" stroke-width="2.5" stroke-dasharray="4 3" opacity="0.5"/>
+    <text x="790" y="383" font-family="Georgia, serif" font-size="22" font-style="italic" fill="#4a3848">65 kg</text>
+    <text x="790" y="408" font-family="'Helvetica Neue', Arial, sans-serif" font-size="13" fill="#d4829e">Weekend getaway</text>
+    <text x="940" y="398" font-size="26">🎁</text>
+  </g>
+
+  <!-- Sparkles scattered -->
+  <polygon points="580,100 585,115 600,115 588,125 592,140 580,132 568,140 572,125 560,115 575,115" fill="#f0c8d8" opacity="0.5"/>
+  <polygon points="1020,300 1024,310 1034,310 1026,317 1029,327 1020,321 1011,327 1014,317 1006,310 1016,310" fill="#f0c8d8" opacity="0.4"/>
+  <polygon points="1080,160 1083,168 1091,168 1085,173 1087,181 1080,176 1073,181 1075,173 1069,168 1077,168" fill="#d4829e" opacity="0.25"/>
+
+  <!-- Bottom accent line -->
+  <rect x="0" y="618" width="1200" height="12" fill="url(#barTrack)" opacity="0.4"/>
+</svg>
