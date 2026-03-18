@@ -261,6 +261,57 @@ export default function Home() {
     })),
   [journal]);
 
+  // Milestone ETA prediction based on weight trend (linear regression)
+  const nextMilestoneEta = useMemo(() => {
+    if (weightEntries.length < 2 || nextIdx < 0) return null;
+    const targetKg = milestones[nextIdx].target_kg;
+    // Use last 14 entries max for recent trend
+    const recent = weightEntries.slice(-14);
+    const n = recent.length;
+    const t0 = recent[0].date.getTime();
+    const xs = recent.map(e => (e.date.getTime() - t0) / (1000 * 60 * 60 * 24)); // days
+    const ys = recent.map(e => e.weight);
+    const sumX = xs.reduce((a, b) => a + b, 0);
+    const sumY = ys.reduce((a, b) => a + b, 0);
+    const sumXY = xs.reduce((a, x, i) => a + x * ys[i], 0);
+    const sumX2 = xs.reduce((a, x) => a + x * x, 0);
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    if (slope >= 0) return null; // not losing weight
+    const intercept = (sumY - slope * sumX) / n;
+    const daysToTarget = (targetKg - intercept) / slope;
+    if (daysToTarget < 0 || daysToTarget > 365) return null;
+    const eta = new Date(t0 + daysToTarget * 24 * 60 * 60 * 1000);
+    return eta;
+  }, [weightEntries, milestones, nextIdx]);
+
+  // Motivational quotes — rotates daily
+  const dailyQuote = useMemo(() => {
+    const quotes = [
+      { q: "The secret of getting ahead is getting started.", a: "Mark Twain" },
+      { q: "Small daily improvements are the key to staggering long-term results.", a: "Unknown" },
+      { q: "You don't have to be extreme, just consistent.", a: "Unknown" },
+      { q: "Progress, not perfection.", a: "Unknown" },
+      { q: "Every step forward counts, no matter how small.", a: "Unknown" },
+      { q: "Believe you can and you're halfway there.", a: "Theodore Roosevelt" },
+      { q: "It does not matter how slowly you go, as long as you do not stop.", a: "Confucius" },
+      { q: "The only bad workout is the one that didn't happen.", a: "Unknown" },
+      { q: "You are stronger than you think.", a: "Unknown" },
+      { q: "What feels impossible today will one day be your warm-up.", a: "Unknown" },
+      { q: "Be proud of how far you've come.", a: "Unknown" },
+      { q: "A little progress each day adds up to big results.", a: "Unknown" },
+      { q: "Discipline is choosing between what you want now and what you want most.", a: "Abraham Lincoln" },
+      { q: "Your body hears everything your mind says. Stay positive.", a: "Unknown" },
+      { q: "The journey of a thousand miles begins with a single step.", a: "Lao Tzu" },
+      { q: "Don't wish for it. Work for it.", a: "Unknown" },
+      { q: "Success is the sum of small efforts, repeated day in and day out.", a: "Robert Collier" },
+      { q: "You are worth the effort.", a: "Unknown" },
+      { q: "Fall seven times, stand up eight.", a: "Japanese Proverb" },
+      { q: "The best project you'll ever work on is you.", a: "Unknown" },
+    ];
+    const day = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+    return quotes[day % quotes.length];
+  }, []);
+
   // Streak tracking — count consecutive days with journal entries ending today/yesterday
   const streak = useMemo(() => {
     if (journal.length === 0) return 0;
@@ -303,6 +354,10 @@ export default function Home() {
     } else {
       const { error } = await api.completeMilestone(m.id, journey.id, user.uid);
       if (error) { sToast("Failed to check — try again"); return; }
+      // Haptic feedback for milestone completion
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate(i === milestones.length - 1 ? [100, 50, 100, 50, 200] : [80, 40, 120]);
+      }
       setJustChecked(i);
       setCeleb({ ...m, idx: i });
       sToast(`${m.target_kg}kg — reward unlocked`);
@@ -763,6 +818,26 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Daily motivation + ETA */}
+          <div style={{ padding: "0 14px", marginBottom: 12, opacity: on ? 1 : 0, transition: "opacity .7s ease .35s" }}>
+            <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 18, padding: "16px 18px", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: 12, right: 14, fontSize: 14, opacity: 0.3 }}>💭</div>
+              <div style={{ fontFamily: f1, fontSize: 14, fontStyle: "italic", color: T.txt, lineHeight: 1.6, marginBottom: 4 }}>"{dailyQuote.q}"</div>
+              <div style={{ fontSize: 10, color: T.txt3, letterSpacing: 0.5 }}>— {dailyQuote.a}</div>
+              {nextMilestoneEta && nextIdx >= 0 && (
+                <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${T.brd}`, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 14 }}>📅</span>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.accent, fontWeight: 500 }}>
+                      ETA for {milestones[nextIdx].target_kg}kg: {nextMilestoneEta.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </div>
+                    <div style={{ fontSize: 9, color: T.txt3 }}>Based on your recent trend</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Milestone cards */}
           <div style={{ padding: "0 14px" }}>
             {milestones.length === 0 && <div style={{ textAlign: "center", padding: "40px 20px", color: T.txt3 }}>
@@ -813,6 +888,35 @@ export default function Home() {
               );
             })}
           </div>
+
+          {/* Share progress */}
+          {!isPartner && done > 0 && (
+            <div style={{ padding: "12px 14px 0", opacity: on ? 1 : 0, transition: "opacity .7s ease .5s" }}>
+              <button onClick={async () => {
+                const progressPct = Math.round(pct * 100);
+                const shareText = `🎯 ${done}/${milestones.length} milestones hit!\n📉 ${Math.round(lost)}kg lost (${progressPct}% to goal)\n${streak > 0 ? `🔥 ${streak} day streak\n` : ""}✨ Tracking with Milestone Rewards`;
+                if (typeof navigator !== "undefined" && navigator.share) {
+                  try { await navigator.share({ title: "My Milestone Progress", text: shareText }); }
+                  catch { /* user cancelled */ }
+                } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+                  await navigator.clipboard.writeText(shareText);
+                  sToast("Progress copied to clipboard!");
+                }
+              }} style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                padding: "14px 20px", borderRadius: 16, border: `1px solid ${T.brd}`,
+                background: T.card, fontFamily: f2, fontSize: 12, letterSpacing: 1,
+                textTransform: "uppercase" as const, color: T.txt2, cursor: "pointer",
+                transition: "all .2s",
+              }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txt3} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+                Share progress
+              </button>
+            </div>
+          )}
         </>}
 
         {/* REWARDS TAB */}
