@@ -989,6 +989,12 @@ export default function Home() {
                             await api.updateMilestone(m.id, { target_kg: parseFloat(m.kg), reward_text: m.rw, emoji_1: m.e, emoji_2: m.e2 || "✨", sort_order: i });
                           }
                         }
+                        // Update journey goal weight to match lowest milestone
+                        const newGoal = Math.min(...editMs.map(m => parseFloat(m.kg)));
+                        if (newGoal && newGoal !== journey.goal_weight) {
+                          await api.updateJourney(journey.id, { goal_weight: newGoal });
+                          setJourney((j: any) => ({ ...j, goal_weight: newGoal }));
+                        }
                         const ms = await api.getMilestones(journey.id);
                         setMilestones(ms);
                         setEditingMilestones(false);

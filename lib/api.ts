@@ -226,6 +226,10 @@ export async function deleteMilestone(milestoneId: string) {
   await deleteDoc(doc(db, "milestones", milestoneId));
 }
 
+export async function updateJourney(journeyId: string, data: { goal_weight?: number; start_weight?: number; title?: string }) {
+  await updateDoc(doc(db, "journeys", journeyId), data);
+}
+
 export async function getMilestones(journeyId: string) {
   const q = query(
     collection(db, "milestones"),
