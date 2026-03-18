@@ -195,7 +195,7 @@ export default function Home() {
   const mState = milestones.map(m => ({
     completed: m.milestone_completions?.length > 0,
     date: m.milestone_completions?.[0]?.completed_at
-      ? new Date(m.milestone_completions[0].completed_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
+      ? (m.milestone_completions[0].completed_at?.toDate?.() || new Date(m.milestone_completions[0].completed_at)).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
       : null,
   }));
   const startKg = journey?.start_weight || 57;
@@ -747,7 +747,7 @@ export default function Home() {
             <div key={entry.id} style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 18, padding: "16px 18px", marginBottom: 6, opacity: on ? 1 : 0, transform: on ? "translateY(0)" : "translateY(14px)", transition: `all .6s cubic-bezier(.16,1,.3,1) ${.15 + i * .04}s`, position: "relative" }}>
               {!isPartner && <div onClick={() => api.deleteJournalEntry(entry.id).then(() => setJournal(j => j.filter(e => e.id !== entry.id)))} style={{ position: "absolute", top: 12, right: 14, fontSize: 11, color: T.txt3, cursor: "pointer", opacity: 0.5 }}>x</div>}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                <span style={{ fontSize: 9, color: T.txt3 }}>{new Date(entry.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+                <span style={{ fontSize: 9, color: T.txt3 }}>{(entry.created_at?.toDate?.() || new Date(entry.created_at)).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
                 {entry.mood && <span style={{ fontSize: 16 }}>{entry.mood}</span>}
                 {isPartner && entry.user_id === user?.uid && <span style={{ fontSize: 8, letterSpacing: 1, color: T.lav, background: T.lav + "18", padding: "2px 6px", borderRadius: 100 }}>you</span>}
               </div>
