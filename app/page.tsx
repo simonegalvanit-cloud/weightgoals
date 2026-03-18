@@ -34,6 +34,7 @@ export default function Home() {
   const [creating, setCreating] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
   const [joinLoading, setJoinLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const pendingInviteRef = useRef<string>("");
   const [setupData, setSetupData] = useState({ name: "", startKg: "", goalKg: "", theme: "pink", milestones: [] as any[] });
   const tRef = useRef<any>(null);
@@ -195,7 +196,7 @@ export default function Home() {
   const mState = milestones.map(m => ({
     completed: m.milestone_completions?.length > 0,
     date: m.milestone_completions?.[0]?.completed_at
-      ? new Date(m.milestone_completions[0].completed_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
+      ? (m.milestone_completions[0].completed_at?.toDate?.() || new Date(m.milestone_completions[0].completed_at)).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
       : null,
   }));
   const startKg = journey?.start_weight || 57;
@@ -207,6 +208,7 @@ export default function Home() {
   const totalToLose = startKg - goalKg;
   const pct = totalToLose > 0 ? Math.min(lost / totalToLose, 1) : 0;
   const nextIdx = mState.findIndex(s => !s.completed);
+  const lastWeight = journal.find(e => e.weight)?.weight;
   const circ = 2 * Math.PI * 58;
 
   const toggleMilestone = async (i: number) => {
@@ -219,6 +221,7 @@ export default function Home() {
     if (wasCompleted && i < milestones.length - 1 && mState[i + 1].completed) { sToast(`uncheck ${milestones[i + 1].target_kg}kg first`); return; }
 
     if (wasCompleted) {
+      if (!confirm(`Uncheck ${m.target_kg}kg? This will remove your progress.`)) return;
       const { error } = await api.uncompleteMilestone(m.id);
       if (error) { sToast("Failed to uncheck — try again"); return; }
     } else {
@@ -469,9 +472,9 @@ export default function Home() {
           <div style={{ fontSize: 56, marginBottom: 20, animation: "float 3s ease-in-out infinite" }}>🎉</div>
           <div style={{ fontFamily: f1, fontSize: 28, fontStyle: "italic", marginBottom: 8 }}>You're all set!</div>
           <div style={{ fontSize: 13, color: T.txt2, marginBottom: 24, lineHeight: 1.6 }}>Share this code with your partner:</div>
-          <div style={{ background: T.card, border: `2px solid ${T.accentL}`, borderRadius: 16, padding: "20px 24px", marginBottom: 24 }}>
+          <div onClick={() => { navigator.clipboard.writeText(journey?.invite_code || ""); sToast("Code copied!"); }} style={{ background: T.card, border: `2px solid ${T.accentL}`, borderRadius: 16, padding: "20px 24px", marginBottom: 24, cursor: "pointer", transition: "transform .15s", position: "relative" }}>
             <div style={{ fontFamily: f1, fontSize: 36, fontWeight: 500, letterSpacing: 6, color: T.accent }}>{journey?.invite_code}</div>
-            <div style={{ fontSize: 10, color: T.txt3, marginTop: 6, letterSpacing: 1, textTransform: "uppercase" }}>partner invite code</div>
+            <div style={{ fontSize: 10, color: T.txt3, marginTop: 6, letterSpacing: 1, textTransform: "uppercase" }}>tap to copy</div>
           </div>
           <Btn primary onClick={() => setScreen("main")}>Start my journey</Btn>
         </div>
@@ -646,6 +649,11 @@ export default function Home() {
 
           {/* Milestone cards */}
           <div style={{ padding: "0 14px" }}>
+            {milestones.length === 0 && <div style={{ textAlign: "center", padding: "40px 20px", color: T.txt3 }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>🌱</div>
+              <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 6 }}>No milestones yet</div>
+              <div style={{ fontSize: 12 }}>Your milestones will appear here once your journey is set up</div>
+            </div>}
             {milestones.map((m, i) => {
               const s = mState[i], isNx = i === nextIdx, jc = justChecked === i;
               const canCheck = s.completed || i === 0 || mState[i - 1]?.completed;
@@ -696,14 +704,18 @@ export default function Home() {
           <div style={{ textAlign: "center", marginBottom: 24, opacity: on ? 1 : 0, transition: "opacity .6s ease" }}>
             <div style={{ fontFamily: f1, fontSize: 18, fontStyle: "italic" }}>{done} of {milestones.length} unlocked</div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {milestones.length === 0 ? <div style={{ textAlign: "center", padding: "40px 20px", color: T.txt3 }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🎁</div>
+            <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 6 }}>No rewards yet</div>
+            <div style={{ fontSize: 12 }}>Rewards will unlock as you hit milestones</div>
+          </div> : <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {milestones.map((m, i) => { const s = mState[i]; return (
               <div key={m.id} style={{ background: s.completed ? T.grnBg : T.card, border: `1px solid ${s.completed ? T.grn + "40" : T.brd}`, borderRadius: 18, padding: "22px 12px 16px", textAlign: "center", opacity: on ? (s.completed ? 1 : 0.4) : 0, transform: on ? "translateY(0) scale(1)" : "translateY(14px) scale(.97)", transition: `all .65s cubic-bezier(.16,1,.3,1) ${.08 + i * .045}s` }}>
                 <span style={{ fontSize: 30, display: "block", marginBottom: 8, ...(s.completed ? { animation: `float 3.5s ease-in-out infinite`, animationDelay: `${i * .25}s` } : { filter: "grayscale(.8) opacity(.5)" }) }}>{m.emoji_1}{m.emoji_2}</span>
                 <div style={{ fontFamily: f1, fontSize: 16, fontWeight: 500, marginBottom: 5, color: s.completed ? T.txt : T.txt3 }}>{m.target_kg} kg</div>
                 {m.reward_text && <div style={{ fontSize: 10.5, color: s.completed ? T.txt2 : T.txt3, lineHeight: 1.35 }}>{m.reward_text}</div>}
               </div>); })}
-          </div>
+          </div>}
         </div>}
 
         {/* JOURNAL TAB */}
@@ -727,7 +739,7 @@ export default function Home() {
               <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 9, letterSpacing: 1.5, color: T.txt3, textTransform: "uppercase", marginBottom: 5 }}>weight</div>
-                  <input type="number" step="0.1" placeholder="kg" value={jInput.weight} onChange={e => setJInput(p => ({ ...p, weight: e.target.value }))} style={{ width: "100%", fontFamily: f2, fontSize: 14, padding: "10px 12px", border: `1px solid ${T.brd}`, borderRadius: 12, background: T.bg, color: T.txt, outline: "none" }} />
+                  <input type="number" step="0.1" placeholder={lastWeight ? `${lastWeight} kg` : "kg"} value={jInput.weight} onChange={e => setJInput(p => ({ ...p, weight: e.target.value }))} onFocus={e => { if (!e.target.value && lastWeight) setJInput(p => ({ ...p, weight: String(lastWeight) })); }} style={{ width: "100%", fontFamily: f2, fontSize: 14, padding: "10px 12px", border: `1px solid ${T.brd}`, borderRadius: 12, background: T.bg, color: T.txt, outline: "none" }} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 9, letterSpacing: 1.5, color: T.txt3, textTransform: "uppercase", marginBottom: 5 }}>mood</div>
@@ -743,11 +755,22 @@ export default function Home() {
               <Btn primary onClick={addEntry} disabled={!jInput.weight && !jInput.note}>Add entry</Btn>
             </div>
           )}
+          {journal.length === 0 && <div style={{ textAlign: "center", padding: "30px 20px", color: T.txt3 }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>📝</div>
+            <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 6 }}>No entries yet</div>
+            <div style={{ fontSize: 12 }}>{isPartner ? "Journal entries will appear here" : "Log your first weigh-in above"}</div>
+          </div>}
           {journal.map((entry, i) => (
             <div key={entry.id} style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 18, padding: "16px 18px", marginBottom: 6, opacity: on ? 1 : 0, transform: on ? "translateY(0)" : "translateY(14px)", transition: `all .6s cubic-bezier(.16,1,.3,1) ${.15 + i * .04}s`, position: "relative" }}>
-              {!isPartner && <div onClick={() => api.deleteJournalEntry(entry.id).then(() => setJournal(j => j.filter(e => e.id !== entry.id)))} style={{ position: "absolute", top: 12, right: 14, fontSize: 11, color: T.txt3, cursor: "pointer", opacity: 0.5 }}>x</div>}
+              {!isPartner && (confirmDelete === entry.id
+                ? <div style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 4 }}>
+                    <button onClick={() => { api.deleteJournalEntry(entry.id).then(() => setJournal(j => j.filter(e => e.id !== entry.id))); setConfirmDelete(null); }} style={{ fontSize: 9, padding: "3px 8px", borderRadius: 6, border: "none", background: "#c44", color: "#fff", cursor: "pointer", letterSpacing: 0.5 }}>delete</button>
+                    <button onClick={() => setConfirmDelete(null)} style={{ fontSize: 9, padding: "3px 8px", borderRadius: 6, border: `1px solid ${T.brd}`, background: T.card, color: T.txt3, cursor: "pointer" }}>cancel</button>
+                  </div>
+                : <div onClick={() => setConfirmDelete(entry.id)} style={{ position: "absolute", top: 12, right: 14, fontSize: 11, color: T.txt3, cursor: "pointer", opacity: 0.5 }}>x</div>
+              )}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                <span style={{ fontSize: 9, color: T.txt3 }}>{new Date(entry.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+                <span style={{ fontSize: 9, color: T.txt3 }}>{(entry.created_at?.toDate?.() || new Date(entry.created_at)).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
                 {entry.mood && <span style={{ fontSize: 16 }}>{entry.mood}</span>}
                 {isPartner && entry.user_id === user?.uid && <span style={{ fontSize: 8, letterSpacing: 1, color: T.lav, background: T.lav + "18", padding: "2px 6px", borderRadius: 100 }}>you</span>}
               </div>
@@ -768,8 +791,10 @@ export default function Home() {
             </div>}
             {!isPartner && <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Partner code</div>
-              <div style={{ fontFamily: f1, fontSize: 28, fontWeight: 500, letterSpacing: 4, color: T.accent, textAlign: "center", padding: "12px 0" }}>{journey.invite_code}</div>
-              <div style={{ fontSize: 10, color: T.txt3, textAlign: "center" }}>Share with your partner</div>
+              <div onClick={() => { navigator.clipboard.writeText(journey.invite_code || ""); sToast("Code copied!"); }} style={{ cursor: "pointer", padding: "12px 0" }}>
+                <div style={{ fontFamily: f1, fontSize: 28, fontWeight: 500, letterSpacing: 4, color: T.accent, textAlign: "center" }}>{journey.invite_code}</div>
+                <div style={{ fontSize: 10, color: T.txt3, textAlign: "center", marginTop: 4 }}>tap to copy</div>
+              </div>
             </div>}
             {!isPartner && <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Join a partner's journey</div>
