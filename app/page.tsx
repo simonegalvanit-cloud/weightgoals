@@ -1280,7 +1280,8 @@ export default function Home() {
                 {isClaimed && <div style={{ position: "absolute", top: 8, right: 8, fontSize: 8, letterSpacing: 1, textTransform: "uppercase" as const, color: T.grn, background: T.grn + "18", padding: "2px 7px", borderRadius: 100, fontWeight: 600 }}>claimed</div>}
                 <span style={{ fontSize: 30, display: "block", marginBottom: 8, ...(s.completed ? { animation: `float 3.5s ease-in-out infinite`, animationDelay: `${i * .25}s` } : { filter: "grayscale(.8) opacity(.5)" }) }}>{m.emoji_1}{m.emoji_2}</span>
                 <div style={{ fontFamily: f1, fontSize: 16, fontWeight: 500, marginBottom: 5, color: s.completed ? T.txt : T.txt3 }}>{m.target_kg} kg</div>
-                {m.reward_text && <div style={{ fontSize: 10.5, color: s.completed ? T.txt2 : T.txt3, lineHeight: 1.35, marginBottom: s.completed ? 8 : 0 }}>{m.reward_text}</div>}
+                {m.reward_text && <div style={{ fontSize: 10.5, color: s.completed ? T.txt2 : T.txt3, lineHeight: 1.35 }}>{m.reward_text}</div>}
+                {s.date && <div style={{ fontSize: 9, color: T.grn, marginTop: 4, fontWeight: 500, marginBottom: s.completed ? 4 : 0 }}>✓ {s.date}</div>}
                 {s.completed && !isPartner && (
                   <button onClick={async () => {
                     if (isClaimed) {
