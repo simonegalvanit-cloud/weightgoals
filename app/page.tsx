@@ -92,9 +92,14 @@ export default function Home() {
             setSetupData(p => ({ ...p, name: prof?.name || "" }));
             setScreen("setup-name");
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error("Failed to load journey data:", err);
-          setLoadError(String((err as any)?.message || "Failed to load data"));
+          const msg = err?.message || "Failed to load data";
+          if (msg.includes("permission")) {
+            setLoadError("Firestore security rules are blocking access. Update your rules in the Firebase console (see firestore.rules in the repo for the correct rules).");
+          } else {
+            setLoadError(msg);
+          }
         }
       } else {
         setUser(null);
