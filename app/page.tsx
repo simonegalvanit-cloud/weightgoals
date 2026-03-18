@@ -775,7 +775,16 @@ export default function Home() {
     <div style={{ background: T.bg, minHeight: "100vh", fontFamily: f2, color: T.txt }}>
       <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 24px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
         <div style={{ opacity: on ? 1 : 0, transform: on ? "translateY(0)" : "translateY(20px)", transition: "all 1s cubic-bezier(.16,1,.3,1)", textAlign: "center", width: "100%" }}>
-          <div style={{ fontSize: 56, marginBottom: 20, animation: "float 3s ease-in-out infinite" }}>🎀</div>
+          <div style={{ marginBottom: 20, animation: "float 3s ease-in-out infinite" }}>
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="32" cy="32" r="28" fill={T.accent} opacity="0.13"/>
+              <circle cx="32" cy="32" r="22" stroke={T.accent} strokeWidth="2.5" fill="none"/>
+              <polyline points="22,33 29,40 42,26" fill="none" stroke={T.accent} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <circle cx="50" cy="12" r="4" fill={T.accent} opacity="0.5"/>
+              <circle cx="54" cy="20" r="2" fill={T.accent} opacity="0.35"/>
+              <circle cx="12" cy="14" r="2.5" fill={T.accent} opacity="0.4"/>
+            </svg>
+          </div>
           <div style={{ fontFamily: f1, fontSize: 36, fontWeight: 400, fontStyle: "italic", marginBottom: 8 }}>Milestone</div>
           <div style={{ fontSize: 11, letterSpacing: 4, color: T.txt3, textTransform: "uppercase", marginBottom: 32 }}>reward your journey</div>
 
