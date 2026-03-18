@@ -12,6 +12,7 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [journey, setJourney] = useState<any>(null);
+  const [isPartner, setIsPartner] = useState(false);
   const [milestones, setMilestones] = useState<any[]>([]);
   const [journal, setJournal] = useState<any[]>([]);
   const [on, setOn] = useState(false);
@@ -61,6 +62,7 @@ export default function Home() {
         if (journeys.length > 0) {
           const j = journeys[0];
           setJourney(j);
+          setIsPartner(false);
           const ms = await api.getMilestones(j.id);
           setMilestones(ms);
           const je = await api.getJournalEntries(j.id);
@@ -71,6 +73,7 @@ export default function Home() {
           const pj = partnerJourneys[0] as any;
           const fullJourney = pj.journeys;
           setJourney(fullJourney);
+          setIsPartner(true);
           const ms = await api.getMilestones(fullJourney.id);
           setMilestones(ms);
           const je = await api.getJournalEntries(fullJourney.id);
@@ -202,6 +205,7 @@ export default function Home() {
 
   const toggleMilestone = async (i: number) => {
     if (!user || !journey) return;
+    if (isPartner) { sToast("Only the journey owner can check milestones"); return; }
     const m = milestones[i];
     const wasCompleted = mState[i].completed;
 
@@ -579,8 +583,9 @@ export default function Home() {
       <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 0 50px" }}>
         {/* Header */}
         <div style={{ padding: "40px 24px 16px", textAlign: "center", opacity: on ? 1 : 0, transform: on ? "translateY(0)" : "translateY(14px)", transition: "all .9s cubic-bezier(.16,1,.3,1)" }}>
-          <div style={{ fontSize: 10, letterSpacing: 4, color: T.txt3, textTransform: "uppercase", marginBottom: 8 }}>rewards</div>
+          <div style={{ fontSize: 10, letterSpacing: 4, color: T.txt3, textTransform: "uppercase", marginBottom: 8 }}>{isPartner ? "supporting" : "rewards"}</div>
           <div style={{ fontFamily: f1, fontSize: 30, fontWeight: 400, fontStyle: "italic", lineHeight: 1.2 }}>{journey.title}</div>
+          {isPartner && <div style={{ display: "inline-block", marginTop: 8, fontSize: 9, letterSpacing: 2, textTransform: "uppercase", color: T.lav, background: T.lav + "18", padding: "4px 14px", borderRadius: 100, border: `1px solid ${T.lav}30` }}>partner view</div>}
           <div style={{ marginTop: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
             <span style={{ fontFamily: f1, fontSize: 13, fontStyle: "italic", color: T.txt3 }}>{now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</span>
             <span style={{ color: T.accentL, fontSize: 10 }}>·</span>
@@ -650,12 +655,12 @@ export default function Home() {
                   ...(jc ? { animation: "cardPop .6s cubic-bezier(.16,1,.3,1)" } : {}),
                 }}>
                   {isNx && <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: `linear-gradient(90deg,transparent 0%,${T.accent}0f 50%,transparent 100%)`, backgroundSize: "200% 100%", animation: "shimmer 3s ease-in-out infinite" }} />}
-                  <div onClick={() => toggleMilestone(i)} style={{
+                  <div onClick={() => !isPartner && toggleMilestone(i)} style={{
                     width: 40, height: 40, minWidth: 40, borderRadius: "50%",
-                    border: `2px solid ${s.completed ? T.grn : canCheck ? T.accentL : T.txt3 + "4d"}`,
+                    border: `2px solid ${s.completed ? T.grn : canCheck && !isPartner ? T.accentL : T.txt3 + "4d"}`,
                     background: s.completed ? T.grnBg : "transparent",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    cursor: canCheck ? "pointer" : "default", transition: "all .35s cubic-bezier(.16,1,.3,1)",
+                    cursor: canCheck && !isPartner ? "pointer" : "default", transition: "all .35s cubic-bezier(.16,1,.3,1)",
                     zIndex: 2, position: "relative",
                   }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.grn} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
@@ -697,32 +702,48 @@ export default function Home() {
 
         {/* JOURNAL TAB */}
         {activeTab === "journal" && <div style={{ padding: "20px 14px" }}>
-          <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 16, opacity: on ? 1 : 0, transform: on ? "translateY(0)" : "translateY(14px)", transition: "all .7s cubic-bezier(.16,1,.3,1) .1s" }}>
-            <div style={{ fontFamily: f1, fontSize: 16, fontWeight: 500, fontStyle: "italic", marginBottom: 14 }}>New entry</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 9, letterSpacing: 1.5, color: T.txt3, textTransform: "uppercase", marginBottom: 5 }}>weight</div>
-                <input type="number" step="0.1" placeholder="kg" value={jInput.weight} onChange={e => setJInput(p => ({ ...p, weight: e.target.value }))} style={{ width: "100%", fontFamily: f2, fontSize: 14, padding: "10px 12px", border: `1px solid ${T.brd}`, borderRadius: 12, background: T.bg, color: T.txt, outline: "none" }} />
+          {isPartner ? (
+            /* Partner: send encouragement */
+            <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 16, opacity: on ? 1 : 0, transform: on ? "translateY(0)" : "translateY(14px)", transition: "all .7s cubic-bezier(.16,1,.3,1) .1s" }}>
+              <div style={{ fontFamily: f1, fontSize: 16, fontWeight: 500, fontStyle: "italic", marginBottom: 14 }}>Send encouragement</div>
+              <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginBottom: 10 }}>
+                {MOOD_OPTIONS.slice(0, 5).map(mood => <button key={mood} onClick={() => setJInput(p => ({ ...p, mood: p.mood === mood ? "" : mood }))} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${jInput.mood === mood ? T.accent : T.brd}`, background: jInput.mood === mood ? T.accent + "14" : T.bg, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{mood}</button>)}
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 9, letterSpacing: 1.5, color: T.txt3, textTransform: "uppercase", marginBottom: 5 }}>mood</div>
-                <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                  {MOOD_OPTIONS.slice(0, 5).map(mood => <button key={mood} onClick={() => setJInput(p => ({ ...p, mood: p.mood === mood ? "" : mood }))} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${jInput.mood === mood ? T.accent : T.brd}`, background: jInput.mood === mood ? T.accent + "14" : T.bg, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{mood}</button>)}
+              <div style={{ marginBottom: 14 }}>
+                <textarea placeholder="You're doing amazing! Keep going..." value={jInput.note} onChange={e => setJInput(p => ({ ...p, note: e.target.value }))} rows={2} style={{ width: "100%", fontFamily: f2, fontSize: 13, padding: "10px 12px", border: `1px solid ${T.brd}`, borderRadius: 12, background: T.bg, color: T.txt, outline: "none", resize: "none", lineHeight: 1.5 }} />
+              </div>
+              <Btn primary onClick={addEntry} disabled={!jInput.note}>Send note</Btn>
+            </div>
+          ) : (
+            /* Owner: full journal entry */
+            <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 16, opacity: on ? 1 : 0, transform: on ? "translateY(0)" : "translateY(14px)", transition: "all .7s cubic-bezier(.16,1,.3,1) .1s" }}>
+              <div style={{ fontFamily: f1, fontSize: 16, fontWeight: 500, fontStyle: "italic", marginBottom: 14 }}>New entry</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 9, letterSpacing: 1.5, color: T.txt3, textTransform: "uppercase", marginBottom: 5 }}>weight</div>
+                  <input type="number" step="0.1" placeholder="kg" value={jInput.weight} onChange={e => setJInput(p => ({ ...p, weight: e.target.value }))} style={{ width: "100%", fontFamily: f2, fontSize: 14, padding: "10px 12px", border: `1px solid ${T.brd}`, borderRadius: 12, background: T.bg, color: T.txt, outline: "none" }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 9, letterSpacing: 1.5, color: T.txt3, textTransform: "uppercase", marginBottom: 5 }}>mood</div>
+                  <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                    {MOOD_OPTIONS.slice(0, 5).map(mood => <button key={mood} onClick={() => setJInput(p => ({ ...p, mood: p.mood === mood ? "" : mood }))} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${jInput.mood === mood ? T.accent : T.brd}`, background: jInput.mood === mood ? T.accent + "14" : T.bg, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{mood}</button>)}
+                  </div>
                 </div>
               </div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 9, letterSpacing: 1.5, color: T.txt3, textTransform: "uppercase", marginBottom: 5 }}>note</div>
+                <textarea placeholder="How are you feeling?" value={jInput.note} onChange={e => setJInput(p => ({ ...p, note: e.target.value }))} rows={2} style={{ width: "100%", fontFamily: f2, fontSize: 13, padding: "10px 12px", border: `1px solid ${T.brd}`, borderRadius: 12, background: T.bg, color: T.txt, outline: "none", resize: "none", lineHeight: 1.5 }} />
+              </div>
+              <Btn primary onClick={addEntry} disabled={!jInput.weight && !jInput.note}>Add entry</Btn>
             </div>
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 9, letterSpacing: 1.5, color: T.txt3, textTransform: "uppercase", marginBottom: 5 }}>note</div>
-              <textarea placeholder="How are you feeling?" value={jInput.note} onChange={e => setJInput(p => ({ ...p, note: e.target.value }))} rows={2} style={{ width: "100%", fontFamily: f2, fontSize: 13, padding: "10px 12px", border: `1px solid ${T.brd}`, borderRadius: 12, background: T.bg, color: T.txt, outline: "none", resize: "none", lineHeight: 1.5 }} />
-            </div>
-            <Btn primary onClick={addEntry} disabled={!jInput.weight && !jInput.note}>Add entry</Btn>
-          </div>
+          )}
           {journal.map((entry, i) => (
             <div key={entry.id} style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 18, padding: "16px 18px", marginBottom: 6, opacity: on ? 1 : 0, transform: on ? "translateY(0)" : "translateY(14px)", transition: `all .6s cubic-bezier(.16,1,.3,1) ${.15 + i * .04}s`, position: "relative" }}>
-              <div onClick={() => api.deleteJournalEntry(entry.id).then(() => setJournal(j => j.filter(e => e.id !== entry.id)))} style={{ position: "absolute", top: 12, right: 14, fontSize: 11, color: T.txt3, cursor: "pointer", opacity: 0.5 }}>x</div>
+              {!isPartner && <div onClick={() => api.deleteJournalEntry(entry.id).then(() => setJournal(j => j.filter(e => e.id !== entry.id)))} style={{ position: "absolute", top: 12, right: 14, fontSize: 11, color: T.txt3, cursor: "pointer", opacity: 0.5 }}>x</div>}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                 <span style={{ fontSize: 9, color: T.txt3 }}>{new Date(entry.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
                 {entry.mood && <span style={{ fontSize: 16 }}>{entry.mood}</span>}
+                {isPartner && entry.user_id === user?.uid && <span style={{ fontSize: 8, letterSpacing: 1, color: T.lav, background: T.lav + "18", padding: "2px 6px", borderRadius: 100 }}>you</span>}
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
                 {entry.weight && <div style={{ fontFamily: f1, fontSize: 22, fontWeight: 500 }}>{entry.weight}<span style={{ fontSize: 12, color: T.txt3, fontFamily: f2, fontWeight: 300, marginLeft: 2 }}>kg</span></div>}
@@ -735,12 +756,16 @@ export default function Home() {
         {/* SETTINGS TAB */}
         {activeTab === "settings" && <div style={{ padding: "20px 14px" }}>
           <div style={{ opacity: on ? 1 : 0, transform: on ? "translateY(0)" : "translateY(14px)", transition: "all .7s cubic-bezier(.16,1,.3,1) .1s" }}>
-            <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
+            {isPartner && <div style={{ background: T.lav + "14", border: `1px solid ${T.lav}30`, borderRadius: 20, padding: "22px 18px", marginBottom: 12, textAlign: "center" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, color: T.lav, textTransform: "uppercase", marginBottom: 6 }}>partner mode</div>
+              <div style={{ fontFamily: f1, fontSize: 15, fontStyle: "italic", color: T.txt2, lineHeight: 1.5 }}>You're supporting this journey. You can view progress and send encouragement.</div>
+            </div>}
+            {!isPartner && <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Partner code</div>
               <div style={{ fontFamily: f1, fontSize: 28, fontWeight: 500, letterSpacing: 4, color: T.accent, textAlign: "center", padding: "12px 0" }}>{journey.invite_code}</div>
               <div style={{ fontSize: 10, color: T.txt3, textAlign: "center" }}>Share with your partner</div>
-            </div>
-            <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
+            </div>}
+            {!isPartner && <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Join a partner's journey</div>
               <div style={{ display: "flex", gap: 8 }}>
                 <input placeholder="Enter invite code" value={inviteCode} onChange={(e: any) => setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))}
@@ -762,7 +787,7 @@ export default function Home() {
                   {joinLoading ? "..." : "Join"}
                 </button>
               </div>
-            </div>
+            </div>}
             <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Theme</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
