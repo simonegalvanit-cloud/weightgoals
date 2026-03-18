@@ -33,6 +33,7 @@ export default function Home() {
   const [emojiPicker, setEmojiPicker] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [notifEnabled, setNotifEnabled] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
   const [joinLoading, setJoinLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -113,9 +114,14 @@ export default function Home() {
   useEffect(() => {
     if (!journey) return;
     const unsub = api.subscribeToJourney(journey.id, {
-      onMilestoneCompleted: async () => {
+      onMilestoneCompleted: async (data) => {
         const ms = await api.getMilestones(journey.id);
         setMilestones(ms);
+        // Notify partner when owner hits a milestone
+        if (isPartner && data.completed_by !== user?.uid) {
+          const m = milestones.find(m => m.id === data.milestone_id);
+          if (m) sToast(`🎉 They just hit ${m.target_kg}kg!`);
+        }
       },
       onMilestoneUncompleted: async () => {
         const ms = await api.getMilestones(journey.id);
@@ -123,10 +129,31 @@ export default function Home() {
       },
       onJournalEntry: (data) => {
         setJournal(prev => [data, ...prev]);
+        // Notify partner of new journal entries
+        if (isPartner && data.user_id !== user?.uid) {
+          sToast(data.weight ? `📝 New weigh-in: ${data.weight}kg` : "📝 New journal entry!");
+        }
       },
     });
     return () => { unsub(); };
   }, [journey?.id]);
+
+  // Check notification permission state
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotifEnabled(Notification.permission === "granted");
+    }
+  }, []);
+
+  // Foreground push message listener
+  useEffect(() => {
+    if (!notifEnabled) return;
+    let unsub: (() => void) | undefined;
+    api.onForegroundMessage((payload: any) => {
+      sToast(payload?.notification?.body || "New notification");
+    }).then(u => { unsub = u; });
+    return () => { unsub?.(); };
+  }, [notifEnabled]);
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => { setOn(false); setTimeout(() => setOn(true), 60); }, [screen, activeTab]);
@@ -221,6 +248,40 @@ export default function Home() {
   const nextIdx = mState.findIndex(s => !s.completed);
   const lastWeight = journal.find(e => e.weight)?.weight;
   const circ = 2 * Math.PI * 58;
+
+  // Weight trend data (chronological, entries with weight only)
+  const weightEntries = useMemo(() =>
+    [...journal].reverse().filter(e => e.weight).map(e => ({
+      weight: e.weight,
+      date: e.created_at?.toDate?.() || new Date(e.created_at),
+    })),
+  [journal]);
+
+  // Streak tracking — count consecutive days with journal entries ending today/yesterday
+  const streak = useMemo(() => {
+    if (journal.length === 0) return 0;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const entryDays = new Set(journal.map(e => {
+      const d = e.created_at?.toDate?.() || new Date(e.created_at);
+      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    }));
+    let count = 0;
+    const check = new Date(today);
+    // Allow streak to start from today or yesterday
+    const todayKey = `${check.getFullYear()}-${check.getMonth()}-${check.getDate()}`;
+    if (!entryDays.has(todayKey)) {
+      check.setDate(check.getDate() - 1);
+      const yKey = `${check.getFullYear()}-${check.getMonth()}-${check.getDate()}`;
+      if (!entryDays.has(yKey)) return 0;
+    }
+    while (true) {
+      const key = `${check.getFullYear()}-${check.getMonth()}-${check.getDate()}`;
+      if (!entryDays.has(key)) break;
+      count++;
+      check.setDate(check.getDate() - 1);
+    }
+    return count;
+  }, [journal]);
 
   const toggleMilestone = async (i: number) => {
     if (!user || !journey) return;
@@ -643,9 +704,9 @@ export default function Home() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 1, marginTop: 24, background: T.card, borderRadius: 16, overflow: "hidden", border: `1px solid ${T.brd}` }}>
-              {[{ v: Math.round(lost), l: "lost", u: "kg" }, { v: done, l: "unlocked" }, { v: nextIdx >= 0 ? Math.round(milestones[nextIdx].target_kg) : 0, l: "next", u: nextIdx >= 0 ? "kg" : "" }].map((s, i) => (
-                <div key={i} style={{ padding: "14px 20px", textAlign: "center", borderRight: i < 2 ? `1px solid ${T.brd}` : "none" }}>
-                  <div style={{ fontFamily: f1, fontSize: 22, fontWeight: 500 }}>{nextIdx < 0 && i === 2 ? "🎉" : s.v}{s.u && <span style={{ fontSize: 11, color: T.txt3, marginLeft: 2, fontFamily: f2, fontWeight: 300 }}>{s.u}</span>}</div>
+              {[{ v: Math.round(lost), l: "lost", u: "kg" }, { v: done, l: "unlocked" }, ...(streak > 0 ? [{ v: streak, l: "streak", u: "🔥", icon: true }] : []), { v: nextIdx >= 0 ? Math.round(milestones[nextIdx].target_kg) : 0, l: "next", u: nextIdx >= 0 ? "kg" : "" }].map((s, i, arr) => (
+                <div key={i} style={{ padding: "14px 16px", textAlign: "center", borderRight: i < arr.length - 1 ? `1px solid ${T.brd}` : "none", flex: 1 }}>
+                  <div style={{ fontFamily: f1, fontSize: 22, fontWeight: 500 }}>{nextIdx < 0 && s.l === "next" ? "🎉" : s.v}{s.u && <span style={{ fontSize: (s as any).icon ? 14 : 11, color: T.txt3, marginLeft: 2, fontFamily: f2, fontWeight: 300 }}>{s.u}</span>}</div>
                   <div style={{ fontSize: 8, letterSpacing: 2, color: T.txt3, textTransform: "uppercase", marginTop: 3 }}>{s.l}</div>
                 </div>
               ))}
@@ -773,6 +834,56 @@ export default function Home() {
               <Btn primary onClick={addEntry} disabled={!jInput.weight && !jInput.note}>Add entry</Btn>
             </div>
           )}
+          {/* Streak + Weight Chart */}
+          {journal.length > 0 && <div style={{ marginBottom: 12, opacity: on ? 1 : 0, transform: on ? "translateY(0)" : "translateY(14px)", transition: "all .7s cubic-bezier(.16,1,.3,1) .15s" }}>
+            {streak > 0 && <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "10px 14px", background: T.card, border: `1px solid ${T.brd}`, borderRadius: 14 }}>
+              <span style={{ fontSize: 20 }}>🔥</span>
+              <div>
+                <div style={{ fontFamily: f1, fontSize: 18, fontWeight: 500 }}>{streak} day streak</div>
+                <div style={{ fontSize: 10, color: T.txt3 }}>{streak === 1 ? "Keep it going!" : streak < 7 ? "Building momentum!" : streak < 30 ? "On fire!" : "Unstoppable!"}</div>
+              </div>
+            </div>}
+            {weightEntries.length >= 2 && (() => {
+              const W = 340, H = 120, px = 28, py = 16;
+              const weights = weightEntries.map(e => e.weight);
+              const minW = Math.min(...weights) - 0.5, maxW = Math.max(...weights) + 0.5;
+              const rangeW = maxW - minW || 1;
+              const pts = weightEntries.map((e, i) => ({
+                x: px + (i / (weightEntries.length - 1)) * (W - px * 2),
+                y: py + (1 - (e.weight - minW) / rangeW) * (H - py * 2),
+                w: e.weight,
+                d: e.date,
+              }));
+              const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+              const area = `${line} L${pts[pts.length - 1].x},${H - py} L${pts[0].x},${H - py} Z`;
+              return (
+                <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 18, padding: "16px 10px 10px", overflow: "hidden" }}>
+                  <div style={{ fontSize: 9, letterSpacing: 1.5, color: T.txt3, textTransform: "uppercase", marginBottom: 8, paddingLeft: 8 }}>weight trend</div>
+                  <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: "block" }}>
+                    {/* Goal line */}
+                    {goalKg >= minW && goalKg <= maxW && <>
+                      <line x1={px} y1={py + (1 - (goalKg - minW) / rangeW) * (H - py * 2)} x2={W - px} y2={py + (1 - (goalKg - minW) / rangeW) * (H - py * 2)} stroke={T.grn} strokeWidth="1" strokeDasharray="4 3" opacity=".5" />
+                      <text x={W - px + 4} y={py + (1 - (goalKg - minW) / rangeW) * (H - py * 2) + 3} fontSize="8" fill={T.grn} opacity=".7">goal</text>
+                    </>}
+                    {/* Area fill */}
+                    <path d={area} fill={T.accent} opacity=".08" />
+                    {/* Line */}
+                    <path d={line} fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    {/* Dots */}
+                    {pts.map((p, i) => (
+                      <g key={i}>
+                        <circle cx={p.x} cy={p.y} r={i === pts.length - 1 ? 4 : 2.5} fill={i === pts.length - 1 ? T.accent : T.accentL} stroke={T.card} strokeWidth="1.5" />
+                        {(i === 0 || i === pts.length - 1) && <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize="9" fontWeight="500" fill={T.txt2}>{p.w}</text>}
+                      </g>
+                    ))}
+                    {/* Y axis labels */}
+                    <text x={4} y={py + 3} fontSize="8" fill={T.txt3}>{Math.round(maxW)}</text>
+                    <text x={4} y={H - py + 3} fontSize="8" fill={T.txt3}>{Math.round(minW)}</text>
+                  </svg>
+                </div>
+              );
+            })()}
+          </div>}
           {journal.length === 0 && <div style={{ textAlign: "center", padding: "30px 20px", color: T.txt3 }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>📝</div>
             <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 6 }}>No entries yet</div>
@@ -848,6 +959,34 @@ export default function Home() {
                 ))}
               </div>
             </div>}
+            <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
+              <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Notifications</div>
+              {notifEnabled ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 18 }}>🔔</span>
+                  <div>
+                    <div style={{ fontSize: 13, color: T.txt }}>Push notifications enabled</div>
+                    <div style={{ fontSize: 10, color: T.txt3 }}>You'll be notified when your partner hits milestones</div>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: 12, color: T.txt2, marginBottom: 10, lineHeight: 1.5 }}>Get notified when your partner hits a milestone or logs a weigh-in</div>
+                  <Btn primary onClick={async () => {
+                    const token = await api.requestNotificationPermission();
+                    if (token && user) {
+                      await api.saveNotificationToken(user.uid, token);
+                      setNotifEnabled(true);
+                      sToast("Notifications enabled!");
+                    } else if (token === null && "Notification" in window && Notification.permission === "denied") {
+                      sToast("Notifications blocked — enable in browser settings");
+                    } else {
+                      sToast("Couldn't enable notifications");
+                    }
+                  }}>Enable notifications</Btn>
+                </div>
+              )}
+            </div>
             <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 8 }}>Account</div>
               <div style={{ fontSize: 12, color: T.txt2, marginBottom: 4 }}>{user?.email}</div>
