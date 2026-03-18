@@ -13,6 +13,7 @@ export default function Home() {
   const [profile, setProfile] = useState<any>(null);
   const [journey, setJourney] = useState<any>(null);
   const [isPartner, setIsPartner] = useState(false);
+  const [ownerProfile, setOwnerProfile] = useState<any>(null);
   const [milestones, setMilestones] = useState<any[]>([]);
   const [journal, setJournal] = useState<any[]>([]);
   const [on, setOn] = useState(false);
@@ -74,6 +75,11 @@ export default function Home() {
           const fullJourney = pj.journeys;
           setJourney(fullJourney);
           setIsPartner(true);
+          // Load the journey owner's profile for their theme
+          if (fullJourney.user_id) {
+            const op = await api.getProfile(fullJourney.user_id);
+            setOwnerProfile(op);
+          }
           const ms = await api.getMilestones(fullJourney.id);
           setMilestones(ms);
           const je = await api.getJournalEntries(fullJourney.id);
@@ -114,7 +120,7 @@ export default function Home() {
   useEffect(() => { setOn(false); setTimeout(() => setOn(true), 60); }, [screen, activeTab]);
 
   // ============ THEME ============
-  const themeKey = profile?.theme || setupData.theme || "pink";
+  const themeKey = (isPartner ? ownerProfile?.theme : profile?.theme) || setupData.theme || "pink";
   const T = THEMES[themeKey] || THEMES.pink;
   const f1 = FONTS.serif, f2 = FONTS.sans;
 
@@ -788,7 +794,7 @@ export default function Home() {
                 </button>
               </div>
             </div>}
-            <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
+            {!isPartner && <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Theme</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
                 {Object.entries(THEMES).map(([key, t]) => (
@@ -798,7 +804,7 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-            </div>
+            </div>}
             <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 8 }}>Account</div>
               <div style={{ fontSize: 12, color: T.txt2, marginBottom: 4 }}>{user?.email}</div>
