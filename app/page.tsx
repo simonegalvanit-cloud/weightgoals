@@ -32,6 +32,7 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(false);
   const [emojiPicker, setEmojiPicker] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [joinLoading, setJoinLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -44,51 +45,56 @@ export default function Home() {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
-        const prof = await api.getProfile(firebaseUser.uid);
-        setProfile(prof);
+        try {
+          const prof = await api.getProfile(firebaseUser.uid);
+          setProfile(prof);
 
-        // Check if there's a pending invite code from the join screen
-        const pending = pendingInviteRef.current;
-        if (pending) {
-          pendingInviteRef.current = "";
-          try {
-            const { error } = await api.joinByInviteCode(pending);
-            if (error) { sToast(error.message || "Invalid invite code"); }
-            else { sToast("Connected to partner's journey!"); }
-          } catch { sToast("Failed to join — try the code again from settings"); }
-        }
-
-        const journeys = await api.getMyJourneys(firebaseUser.uid);
-        // Also check partner journeys
-        const partnerJourneys = await api.getPartnerJourneys(firebaseUser.uid);
-        if (journeys.length > 0) {
-          const j = journeys[0];
-          setJourney(j);
-          setIsPartner(false);
-          const ms = await api.getMilestones(j.id);
-          setMilestones(ms);
-          const je = await api.getJournalEntries(j.id);
-          setJournal(je);
-          setScreen("main");
-        } else if (partnerJourneys.length > 0) {
-          // Partner joined someone else's journey — load that journey
-          const pj = partnerJourneys[0] as any;
-          const fullJourney = pj.journeys;
-          setJourney(fullJourney);
-          setIsPartner(true);
-          // Load the journey owner's profile for their theme
-          if (fullJourney.user_id) {
-            const op = await api.getProfile(fullJourney.user_id);
-            setOwnerProfile(op);
+          // Check if there's a pending invite code from the join screen
+          const pending = pendingInviteRef.current;
+          if (pending) {
+            pendingInviteRef.current = "";
+            try {
+              const { error } = await api.joinByInviteCode(pending);
+              if (error) { sToast(error.message || "Invalid invite code"); }
+              else { sToast("Connected to partner's journey!"); }
+            } catch { sToast("Failed to join — try the code again from settings"); }
           }
-          const ms = await api.getMilestones(fullJourney.id);
-          setMilestones(ms);
-          const je = await api.getJournalEntries(fullJourney.id);
-          setJournal(je);
-          setScreen("main");
-        } else {
-          setSetupData(p => ({ ...p, name: prof?.name || "" }));
-          setScreen("setup-name");
+
+          const journeys = await api.getMyJourneys(firebaseUser.uid);
+          // Also check partner journeys
+          const partnerJourneys = await api.getPartnerJourneys(firebaseUser.uid);
+          if (journeys.length > 0) {
+            const j = journeys[0];
+            setJourney(j);
+            setIsPartner(false);
+            const ms = await api.getMilestones(j.id);
+            setMilestones(ms);
+            const je = await api.getJournalEntries(j.id);
+            setJournal(je);
+            setScreen("main");
+          } else if (partnerJourneys.length > 0) {
+            // Partner joined someone else's journey — load that journey
+            const pj = partnerJourneys[0] as any;
+            const fullJourney = pj.journeys;
+            setJourney(fullJourney);
+            setIsPartner(true);
+            // Load the journey owner's profile for their theme
+            if (fullJourney.user_id) {
+              const op = await api.getProfile(fullJourney.user_id);
+              setOwnerProfile(op);
+            }
+            const ms = await api.getMilestones(fullJourney.id);
+            setMilestones(ms);
+            const je = await api.getJournalEntries(fullJourney.id);
+            setJournal(je);
+            setScreen("main");
+          } else {
+            setSetupData(p => ({ ...p, name: prof?.name || "" }));
+            setScreen("setup-name");
+          }
+        } catch (err) {
+          console.error("Failed to load journey data:", err);
+          setLoadError(String((err as any)?.message || "Failed to load data"));
         }
       } else {
         setUser(null);
@@ -295,8 +301,15 @@ export default function Home() {
   if (screen === "loading") return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg }}>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 32, animation: "float 2s ease-in-out infinite", marginBottom: 12 }}>🎀</div>
-        <div style={{ fontSize: 10, letterSpacing: 3, color: T.txt3, textTransform: "uppercase" }}>loading</div>
+        {loadError ? <>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>😵‍💫</div>
+          <div style={{ fontSize: 13, color: T.txt2, marginBottom: 6 }}>Something went wrong</div>
+          <div style={{ fontSize: 10, color: T.txt3, marginBottom: 16, maxWidth: 260 }}>{loadError}</div>
+          <button onClick={() => { setLoadError(null); window.location.reload(); }} style={{ fontFamily: f2, fontSize: 13, padding: "10px 24px", borderRadius: 12, border: `1px solid ${T.brd}`, background: T.card, color: T.txt, cursor: "pointer" }}>Try again</button>
+        </> : <>
+          <div style={{ fontSize: 32, animation: "float 2s ease-in-out infinite", marginBottom: 12 }}>🎀</div>
+          <div style={{ fontSize: 10, letterSpacing: 3, color: T.txt3, textTransform: "uppercase" }}>loading</div>
+        </>}
       </div>
     </div>
   );
