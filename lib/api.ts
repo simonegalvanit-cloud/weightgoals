@@ -416,6 +416,71 @@ export function subscribeToJourney(
 
 // ============ PUSH NOTIFICATIONS ============
 
+// ============ REWARD CLAIMS ============
+
+export async function claimReward(milestoneId: string, userId: string) {
+  await setDoc(doc(db, "reward_claims", `${milestoneId}_${userId}`), {
+    milestone_id: milestoneId,
+    user_id: userId,
+    claimed_at: serverTimestamp(),
+  });
+  return { error: null };
+}
+
+export async function unclaimReward(milestoneId: string, userId: string) {
+  await deleteDoc(doc(db, "reward_claims", `${milestoneId}_${userId}`));
+  return { error: null };
+}
+
+export async function getRewardClaims(journeyId: string, milestoneIds: string[]) {
+  if (milestoneIds.length === 0) return {};
+  const claims: Record<string, boolean> = {};
+  // Firestore 'in' queries support max 30 items
+  for (let i = 0; i < milestoneIds.length; i += 30) {
+    const batch = milestoneIds.slice(i, i + 30);
+    const q = query(collection(db, "reward_claims"), where("milestone_id", "in", batch));
+    const snap = await getDocs(q);
+    snap.docs.forEach(d => { claims[d.data().milestone_id] = true; });
+  }
+  return claims;
+}
+
+// ============ JOURNAL REACTIONS ============
+
+export async function addReaction(entryId: string, userId: string, emoji: string) {
+  const reactionId = `${entryId}_${userId}`;
+  await setDoc(doc(db, "journal_reactions", reactionId), {
+    entry_id: entryId,
+    user_id: userId,
+    emoji,
+    created_at: serverTimestamp(),
+  });
+  return { error: null };
+}
+
+export async function removeReaction(entryId: string, userId: string) {
+  await deleteDoc(doc(db, "journal_reactions", `${entryId}_${userId}`));
+  return { error: null };
+}
+
+export async function getReactionsForJourney(journeyId: string, entryIds: string[]) {
+  if (entryIds.length === 0) return {};
+  const reactions: Record<string, Array<{ userId: string; emoji: string }>> = {};
+  for (let i = 0; i < entryIds.length; i += 30) {
+    const batch = entryIds.slice(i, i + 30);
+    const q = query(collection(db, "journal_reactions"), where("entry_id", "in", batch));
+    const snap = await getDocs(q);
+    snap.docs.forEach(d => {
+      const data = d.data();
+      if (!reactions[data.entry_id]) reactions[data.entry_id] = [];
+      reactions[data.entry_id].push({ userId: data.user_id, emoji: data.emoji });
+    });
+  }
+  return reactions;
+}
+
+// ============ PUSH NOTIFICATIONS ============
+
 export async function requestNotificationPermission(): Promise<string | null> {
   try {
     if (!("Notification" in window)) return null;
