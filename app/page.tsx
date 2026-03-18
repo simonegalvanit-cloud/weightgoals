@@ -959,7 +959,7 @@ export default function Home() {
                 ))}
               </div>
             </div>}
-            <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
+            {isPartner && <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 14 }}>Notifications</div>
               {notifEnabled ? (
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -986,7 +986,7 @@ export default function Home() {
                   }}>Enable notifications</Btn>
                 </div>
               )}
-            </div>
+            </div>}
             <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 20, padding: "22px 18px", marginBottom: 12 }}>
               <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 8 }}>Account</div>
               <div style={{ fontSize: 12, color: T.txt2, marginBottom: 4 }}>{user?.email}</div>
