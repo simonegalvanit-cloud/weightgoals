@@ -412,6 +412,260 @@ export default function Home() {
     return () => clearInterval(fwRef.current);
   }, [finale, launchFw]);
 
+  // ============ SHARE CARD ============
+  const generateShareCard = useCallback(async (): Promise<File | null> => {
+    const dpr = 2;
+    const W = 540 * dpr, H = 720 * dpr;
+    const canvas = document.createElement("canvas");
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    const s = (v: number) => v * dpr; // scale helper
+
+    // Background gradient
+    const bg = ctx.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, T.bg);
+    bg.addColorStop(0.5, T.accentXL);
+    bg.addColorStop(1, T.bg);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Decorative blobs
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = T.accent;
+    ctx.beginPath(); ctx.arc(W * 0.82, H * 0.12, s(120), 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(W * 0.15, H * 0.88, s(90), 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Card container with rounded rect
+    const cx = s(30), cy = s(30), cw = W - s(60), ch = H - s(60), cr = s(28);
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.beginPath();
+    ctx.roundRect(cx, cy, cw, ch, cr);
+    ctx.fill();
+    ctx.strokeStyle = T.accentL;
+    ctx.lineWidth = s(1.5);
+    ctx.stroke();
+
+    // Inner shadow glow
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(cx, cy, cw, ch, cr);
+    ctx.clip();
+    ctx.shadowColor = T.accent + "1a";
+    ctx.shadowBlur = s(40);
+    ctx.shadowOffsetY = s(4);
+    ctx.fillStyle = "transparent";
+    ctx.fill();
+    ctx.restore();
+
+    // Top accent bar
+    const abg = ctx.createLinearGradient(cx, cy, cx + cw, cy);
+    abg.addColorStop(0, T.accent);
+    abg.addColorStop(1, T.accentL);
+    ctx.fillStyle = abg;
+    ctx.beginPath();
+    ctx.roundRect(cx, cy, cw, s(5), [cr, cr, 0, 0]);
+    ctx.fill();
+
+    // App title
+    let y = s(70);
+    ctx.fillStyle = T.txt3;
+    ctx.font = `300 ${s(9)}px 'Nunito Sans', sans-serif`;
+    ctx.letterSpacing = `${s(3)}px`;
+    ctx.textAlign = "center";
+    ctx.fillText("MILESTONE REWARDS", W / 2, y);
+    ctx.letterSpacing = "0px";
+
+    // Journey title
+    y += s(30);
+    ctx.fillStyle = T.txt;
+    ctx.font = `italic 400 ${s(22)}px 'Cormorant Garamond', Georgia, serif`;
+    ctx.fillText(journey?.title || "My Journey", W / 2, y);
+
+    // Progress ring
+    const ringCx = W / 2, ringCy = y + s(90), ringR = s(60), ringW = s(5);
+    // Track
+    ctx.beginPath();
+    ctx.arc(ringCx, ringCy, ringR, 0, Math.PI * 2);
+    ctx.strokeStyle = T.accentXL;
+    ctx.lineWidth = ringW;
+    ctx.stroke();
+    // Progress arc
+    const startAngle = -Math.PI / 2;
+    const endAngle = startAngle + (Math.PI * 2 * pct);
+    const arcGrad = ctx.createLinearGradient(ringCx - ringR, ringCy, ringCx + ringR, ringCy);
+    arcGrad.addColorStop(0, T.accent);
+    arcGrad.addColorStop(1, T.lav);
+    ctx.beginPath();
+    ctx.arc(ringCx, ringCy, ringR, startAngle, endAngle);
+    ctx.strokeStyle = arcGrad;
+    ctx.lineWidth = ringW;
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.lineCap = "butt";
+    // Ring center text
+    ctx.fillStyle = T.txt;
+    ctx.font = `400 ${s(36)}px 'Cormorant Garamond', Georgia, serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${Math.round(pct * 100)}%`, ringCx, ringCy - s(4));
+    ctx.font = `300 ${s(9)}px 'Nunito Sans', sans-serif`;
+    ctx.fillStyle = T.txt3;
+    ctx.letterSpacing = `${s(2)}px`;
+    ctx.fillText("COMPLETE", ringCx, ringCy + s(18));
+    ctx.letterSpacing = "0px";
+    ctx.textBaseline = "alphabetic";
+
+    // Stats row
+    const statsY = ringCy + ringR + s(36);
+    const stats = [
+      { v: `${Math.round(lost)}kg`, l: "LOST" },
+      { v: `${done}/${milestones.length}`, l: "MILESTONES" },
+      ...(streak > 0 ? [{ v: `${streak}🔥`, l: "STREAK" }] : []),
+    ];
+    const sw = s(120), gap = s(12);
+    const totalW = stats.length * sw + (stats.length - 1) * gap;
+    let sx = (W - totalW) / 2;
+    for (const st of stats) {
+      // Stat box
+      ctx.fillStyle = T.bg;
+      ctx.beginPath();
+      ctx.roundRect(sx, statsY - s(18), sw, s(54), s(12));
+      ctx.fill();
+      ctx.strokeStyle = T.brd;
+      ctx.lineWidth = s(1);
+      ctx.stroke();
+      // Value
+      ctx.fillStyle = T.txt;
+      ctx.font = `500 ${s(18)}px 'Cormorant Garamond', Georgia, serif`;
+      ctx.textAlign = "center";
+      ctx.fillText(st.v, sx + sw / 2, statsY + s(10));
+      // Label
+      ctx.fillStyle = T.txt3;
+      ctx.font = `300 ${s(7)}px 'Nunito Sans', sans-serif`;
+      ctx.letterSpacing = `${s(1.5)}px`;
+      ctx.fillText(st.l, sx + sw / 2, statsY + s(28));
+      ctx.letterSpacing = "0px";
+      sx += sw + gap;
+    }
+
+    // Milestones list
+    let my = statsY + s(58);
+    const listX = s(60), listW = W - s(120);
+    const visibleMs = milestones.slice(0, 6); // max 6 to fit
+    for (let i = 0; i < visibleMs.length; i++) {
+      const m = visibleMs[i];
+      const completed = mState[i]?.completed;
+      const rowH = s(34);
+
+      // Row background
+      if (i % 2 === 0) {
+        ctx.fillStyle = T.bg + "80";
+        ctx.beginPath();
+        ctx.roundRect(listX - s(10), my - s(4), listW + s(20), rowH, s(8));
+        ctx.fill();
+      }
+
+      // Checkbox
+      const cbX = listX + s(6), cbY = my + s(8), cbR = s(9);
+      ctx.beginPath();
+      ctx.arc(cbX, cbY, cbR, 0, Math.PI * 2);
+      if (completed) {
+        ctx.fillStyle = T.grnBg;
+        ctx.fill();
+        ctx.strokeStyle = T.grn;
+        ctx.lineWidth = s(1.5);
+        ctx.stroke();
+        // Checkmark
+        ctx.beginPath();
+        ctx.moveTo(cbX - s(4), cbY);
+        ctx.lineTo(cbX - s(1), cbY + s(3.5));
+        ctx.lineTo(cbX + s(4.5), cbY - s(3));
+        ctx.strokeStyle = T.grn;
+        ctx.lineWidth = s(2);
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.stroke();
+        ctx.lineCap = "butt";
+        ctx.lineJoin = "miter";
+      } else {
+        ctx.strokeStyle = T.accentL;
+        ctx.lineWidth = s(1.5);
+        ctx.setLineDash([s(3), s(2)]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Weight text
+      ctx.textAlign = "left";
+      ctx.fillStyle = completed ? T.txt3 : T.txt;
+      ctx.font = `italic 500 ${s(14)}px 'Cormorant Garamond', Georgia, serif`;
+      const kgText = `${m.target_kg} kg`;
+      ctx.fillText(kgText, cbX + s(18), my + s(13));
+
+      // Reward text
+      if (m.reward_text) {
+        ctx.fillStyle = completed ? T.txt3 : T.txt2;
+        ctx.font = `300 ${s(10)}px 'Nunito Sans', sans-serif`;
+        const maxRwW = listW - s(80);
+        let rw = m.reward_text;
+        if (ctx.measureText(rw).width > maxRwW) rw = rw.substring(0, 20) + "…";
+        ctx.textAlign = "right";
+        ctx.fillText(rw, listX + listW + s(4), my + s(13));
+      }
+
+      // Strikethrough line for completed
+      if (completed) {
+        const kgW = ctx.measureText(kgText).width;
+        ctx.textAlign = "left";
+        ctx.font = `italic 500 ${s(14)}px 'Cormorant Garamond', Georgia, serif`;
+        ctx.strokeStyle = T.txt3;
+        ctx.lineWidth = s(0.8);
+        ctx.beginPath();
+        ctx.moveTo(cbX + s(18), my + s(10));
+        ctx.lineTo(cbX + s(18) + ctx.measureText(kgText).width, my + s(10));
+        ctx.stroke();
+      }
+
+      my += rowH;
+    }
+    if (milestones.length > 6) {
+      ctx.textAlign = "center";
+      ctx.fillStyle = T.txt3;
+      ctx.font = `300 ${s(9)}px 'Nunito Sans', sans-serif`;
+      ctx.fillText(`+${milestones.length - 6} more milestones`, W / 2, my + s(10));
+    }
+
+    // Bottom branding
+    const bottomY = H - s(52);
+    ctx.textAlign = "center";
+    ctx.fillStyle = T.txt3;
+    ctx.font = `300 ${s(9)}px 'Nunito Sans', sans-serif`;
+    ctx.letterSpacing = `${s(2)}px`;
+    ctx.fillText("SET GOALS · EARN REWARDS", W / 2, bottomY);
+    ctx.letterSpacing = "0px";
+
+    // Bottom accent bar
+    const bbg = ctx.createLinearGradient(cx, 0, cx + cw, 0);
+    bbg.addColorStop(0, T.accent);
+    bbg.addColorStop(1, T.accentL);
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = bbg;
+    ctx.beginPath();
+    ctx.roundRect(cx, H - s(34), cw, s(4), [0, 0, cr, cr]);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Convert to blob
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        if (!blob) { resolve(null); return; }
+        resolve(new File([blob], "milestone-progress.png", { type: "image/png" }));
+      }, "image/png");
+    });
+  }, [T, journey, pct, lost, done, milestones, mState, streak, f1, f2]);
+
   const addEntry = async () => {
     if (!journey || !user || (!jInput.weight && !jInput.note)) return;
     const { data } = await api.addJournalEntry({ journeyId: journey.id, userId: user.uid, weight: jInput.weight ? parseFloat(jInput.weight) : undefined, mood: jInput.mood || undefined, note: jInput.note || undefined });
@@ -893,14 +1147,26 @@ export default function Home() {
           {!isPartner && done > 0 && (
             <div style={{ padding: "12px 14px 0", opacity: on ? 1 : 0, transition: "opacity .7s ease .5s" }}>
               <button onClick={async () => {
-                const progressPct = Math.round(pct * 100);
-                const shareText = `🎯 ${done}/${milestones.length} milestones hit!\n📉 ${Math.round(lost)}kg lost (${progressPct}% to goal)\n${streak > 0 ? `🔥 ${streak} day streak\n` : ""}✨ Tracking with Milestone Rewards`;
-                if (typeof navigator !== "undefined" && navigator.share) {
-                  try { await navigator.share({ title: "My Milestone Progress", text: shareText }); }
+                sToast("Generating card...");
+                const file = await generateShareCard();
+                if (!file) { sToast("Couldn't generate card"); return; }
+                const shareData: ShareData = {
+                  title: "My Milestone Progress",
+                  text: `🎯 ${done}/${milestones.length} milestones hit! Tracking with Milestone Rewards`,
+                  files: [file],
+                };
+                if (typeof navigator !== "undefined" && navigator.share && navigator.canShare?.(shareData)) {
+                  try { await navigator.share(shareData); }
                   catch { /* user cancelled */ }
-                } else if (typeof navigator !== "undefined" && navigator.clipboard) {
-                  await navigator.clipboard.writeText(shareText);
-                  sToast("Progress copied to clipboard!");
+                } else {
+                  // Fallback: download the image
+                  const url = URL.createObjectURL(file);
+                  const a = document.createElement("a");
+                  a.href = url; a.download = "milestone-progress.png";
+                  document.body.appendChild(a); a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  sToast("Card saved!");
                 }
               }} style={{
                 width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
