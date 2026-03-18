@@ -202,6 +202,30 @@ export async function getJourneyFull(journeyId: string) {
 
 // ============ MILESTONES ============
 
+export async function updateMilestone(milestoneId: string, data: { target_kg?: number; reward_text?: string; emoji_1?: string; emoji_2?: string; theme_msg?: string; sort_order?: number }) {
+  await updateDoc(doc(db, "milestones", milestoneId), data);
+}
+
+export async function addMilestone(journeyId: string, data: { targetKg: number; rewardText: string; emoji1: string; emoji2: string; sortOrder: number }) {
+  const ref = await addDoc(collection(db, "milestones"), {
+    journey_id: journeyId,
+    target_kg: data.targetKg,
+    reward_text: data.rewardText,
+    emoji_1: data.emoji1,
+    emoji_2: data.emoji2,
+    theme_msg: "",
+    sort_order: data.sortOrder,
+  });
+  return { id: ref.id, journey_id: journeyId, target_kg: data.targetKg, reward_text: data.rewardText, emoji_1: data.emoji1, emoji_2: data.emoji2, theme_msg: "", sort_order: data.sortOrder, milestone_completions: [] };
+}
+
+export async function deleteMilestone(milestoneId: string) {
+  // Delete completions first
+  const compSnap = await getDocs(query(collection(db, "milestone_completions"), where("milestone_id", "==", milestoneId)));
+  for (const d of compSnap.docs) await deleteDoc(d.ref);
+  await deleteDoc(doc(db, "milestones", milestoneId));
+}
+
 export async function getMilestones(journeyId: string) {
   const q = query(
     collection(db, "milestones"),
