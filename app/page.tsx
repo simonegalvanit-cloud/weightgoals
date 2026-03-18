@@ -41,6 +41,9 @@ export default function Home() {
   const [inviteCode, setInviteCode] = useState("");
   const [joinLoading, setJoinLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [rewardClaims, setRewardClaims] = useState<Record<string, boolean>>({});
+  const [reactions, setReactions] = useState<Record<string, Array<{ userId: string; emoji: string }>>>({});
+  const [reactionPicker, setReactionPicker] = useState<string | null>(null);
   const pendingInviteRef = useRef<string>("");
   const [setupData, setSetupData] = useState({ name: "", startKg: "", goalKg: "", theme: "pink", milestones: [] as any[] });
   const tRef = useRef<any>(null);
@@ -76,6 +79,10 @@ export default function Home() {
             setMilestones(ms);
             const je = await api.getJournalEntries(j.id);
             setJournal(je);
+            const claims = await api.getRewardClaims(j.id, ms.map((m: any) => m.id));
+            setRewardClaims(claims);
+            const rxns = await api.getReactionsForJourney(j.id, je.map((e: any) => e.id));
+            setReactions(rxns);
             setScreen("main");
           } else if (partnerJourneys.length > 0) {
             // Partner joined someone else's journey — load that journey
@@ -92,6 +99,10 @@ export default function Home() {
             setMilestones(ms);
             const je = await api.getJournalEntries(fullJourney.id);
             setJournal(je);
+            const claims = await api.getRewardClaims(fullJourney.id, ms.map((m: any) => m.id));
+            setRewardClaims(claims);
+            const rxns = await api.getReactionsForJourney(fullJourney.id, je.map((e: any) => e.id));
+            setReactions(rxns);
             setScreen("main");
           } else {
             setSetupData(p => ({ ...p, name: prof?.name || "" }));
@@ -311,6 +322,34 @@ export default function Home() {
     const day = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
     return quotes[day % quotes.length];
   }, []);
+
+  // Weekly summary — stats for the last 7 days
+  const weeklySummary = useMemo(() => {
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    weekAgo.setHours(0, 0, 0, 0);
+    const thisWeekEntries = journal.filter(e => {
+      const d = e.created_at?.toDate?.() || new Date(e.created_at);
+      return d >= weekAgo;
+    });
+    const thisWeekWeights = thisWeekEntries.filter(e => e.weight).map(e => e.weight);
+    const weightChange = thisWeekWeights.length >= 2
+      ? thisWeekWeights[0] - thisWeekWeights[thisWeekWeights.length - 1]
+      : null;
+    const milestonesThisWeek = milestones.filter((m, i) => {
+      if (!mState[i]?.completed) return false;
+      const comp = m.milestone_completions?.[0];
+      if (!comp) return false;
+      const d = comp.completed_at?.toDate?.() || comp.created_at?.toDate?.() || new Date(comp.created_at);
+      return d >= weekAgo;
+    }).length;
+    return {
+      entries: thisWeekEntries.length,
+      weightChange,
+      milestonesHit: milestonesThisWeek,
+      hasData: thisWeekEntries.length > 0,
+    };
+  }, [journal, milestones, mState]);
 
   // Streak tracking — count consecutive days with journal entries ending today/yesterday
   const streak = useMemo(() => {
@@ -1092,6 +1131,39 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Weekly summary */}
+          {weeklySummary.hasData && (
+            <div style={{ padding: "0 14px", marginBottom: 12, opacity: on ? 1 : 0, transition: "opacity .7s ease .4s" }}>
+              <div style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 18, padding: "16px 18px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div style={{ fontSize: 9, letterSpacing: 2, color: T.txt3, textTransform: "uppercase" as const }}>this week</div>
+                  <div style={{ fontSize: 12, opacity: 0.3 }}>📊</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {weeklySummary.weightChange !== null && (
+                    <div style={{ flex: 1, background: weeklySummary.weightChange > 0 ? T.grnBg : T.bg, borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
+                      <div style={{ fontFamily: f1, fontSize: 18, fontWeight: 500, color: weeklySummary.weightChange > 0 ? T.grn : T.txt }}>
+                        {weeklySummary.weightChange > 0 ? "-" : "+"}{Math.abs(Math.round(weeklySummary.weightChange * 10) / 10)}
+                        <span style={{ fontSize: 10, fontFamily: f2, fontWeight: 300, marginLeft: 1 }}>kg</span>
+                      </div>
+                      <div style={{ fontSize: 8, letterSpacing: 1, color: T.txt3, textTransform: "uppercase" as const, marginTop: 2 }}>change</div>
+                    </div>
+                  )}
+                  <div style={{ flex: 1, background: T.bg, borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
+                    <div style={{ fontFamily: f1, fontSize: 18, fontWeight: 500 }}>{weeklySummary.entries}</div>
+                    <div style={{ fontSize: 8, letterSpacing: 1, color: T.txt3, textTransform: "uppercase" as const, marginTop: 2 }}>entries</div>
+                  </div>
+                  {weeklySummary.milestonesHit > 0 && (
+                    <div style={{ flex: 1, background: T.grnBg, borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
+                      <div style={{ fontFamily: f1, fontSize: 18, fontWeight: 500, color: T.grn }}>{weeklySummary.milestonesHit}</div>
+                      <div style={{ fontSize: 8, letterSpacing: 1, color: T.txt3, textTransform: "uppercase" as const, marginTop: 2 }}>milestones</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Milestone cards */}
           <div style={{ padding: "0 14px" }}>
             {milestones.length === 0 && <div style={{ textAlign: "center", padding: "40px 20px", color: T.txt3 }}>
@@ -1187,19 +1259,49 @@ export default function Home() {
 
         {/* REWARDS TAB */}
         {activeTab === "rewards" && <div style={{ padding: "20px 14px" }}>
-          <div style={{ textAlign: "center", marginBottom: 24, opacity: on ? 1 : 0, transition: "opacity .6s ease" }}>
+          <div style={{ textAlign: "center", marginBottom: 8, opacity: on ? 1 : 0, transition: "opacity .6s ease" }}>
             <div style={{ fontFamily: f1, fontSize: 18, fontStyle: "italic" }}>{done} of {milestones.length} unlocked</div>
           </div>
+          {done > 0 && (() => {
+            const claimed = milestones.filter((m, i) => mState[i].completed && rewardClaims[m.id]).length;
+            return (
+              <div style={{ textAlign: "center", marginBottom: 20, opacity: on ? 1 : 0, transition: "opacity .6s ease .1s" }}>
+                <div style={{ fontSize: 11, color: T.txt3 }}>{claimed} of {done} rewards claimed</div>
+              </div>
+            );
+          })()}
           {milestones.length === 0 ? <div style={{ textAlign: "center", padding: "40px 20px", color: T.txt3 }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>🎁</div>
             <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 6 }}>No rewards yet</div>
             <div style={{ fontSize: 12 }}>Rewards will unlock as you hit milestones</div>
           </div> : <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {milestones.map((m, i) => { const s = mState[i]; return (
-              <div key={m.id} style={{ background: s.completed ? T.grnBg : T.card, border: `1px solid ${s.completed ? T.grn + "40" : T.brd}`, borderRadius: 18, padding: "22px 12px 16px", textAlign: "center", opacity: on ? (s.completed ? 1 : 0.4) : 0, transform: on ? "translateY(0) scale(1)" : "translateY(14px) scale(.97)", transition: `all .65s cubic-bezier(.16,1,.3,1) ${.08 + i * .045}s` }}>
+            {milestones.map((m, i) => { const s = mState[i]; const isClaimed = rewardClaims[m.id]; return (
+              <div key={m.id} style={{ background: isClaimed ? T.grnBg : s.completed ? T.card : T.card, border: `1px solid ${isClaimed ? T.grn + "50" : s.completed ? T.accentL : T.brd}`, borderRadius: 18, padding: "22px 12px 12px", textAlign: "center", opacity: on ? (s.completed ? 1 : 0.4) : 0, transform: on ? "translateY(0) scale(1)" : "translateY(14px) scale(.97)", transition: `all .65s cubic-bezier(.16,1,.3,1) ${.08 + i * .045}s`, position: "relative", overflow: "hidden" }}>
+                {isClaimed && <div style={{ position: "absolute", top: 8, right: 8, fontSize: 8, letterSpacing: 1, textTransform: "uppercase" as const, color: T.grn, background: T.grn + "18", padding: "2px 7px", borderRadius: 100, fontWeight: 600 }}>claimed</div>}
                 <span style={{ fontSize: 30, display: "block", marginBottom: 8, ...(s.completed ? { animation: `float 3.5s ease-in-out infinite`, animationDelay: `${i * .25}s` } : { filter: "grayscale(.8) opacity(.5)" }) }}>{m.emoji_1}{m.emoji_2}</span>
                 <div style={{ fontFamily: f1, fontSize: 16, fontWeight: 500, marginBottom: 5, color: s.completed ? T.txt : T.txt3 }}>{m.target_kg} kg</div>
-                {m.reward_text && <div style={{ fontSize: 10.5, color: s.completed ? T.txt2 : T.txt3, lineHeight: 1.35 }}>{m.reward_text}</div>}
+                {m.reward_text && <div style={{ fontSize: 10.5, color: s.completed ? T.txt2 : T.txt3, lineHeight: 1.35, marginBottom: s.completed ? 8 : 0 }}>{m.reward_text}</div>}
+                {s.completed && !isPartner && (
+                  <button onClick={async () => {
+                    if (isClaimed) {
+                      await api.unclaimReward(m.id, user.uid);
+                      setRewardClaims(p => { const n = { ...p }; delete n[m.id]; return n; });
+                    } else {
+                      await api.claimReward(m.id, user.uid);
+                      setRewardClaims(p => ({ ...p, [m.id]: true }));
+                      if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(50);
+                      sToast(`${m.reward_text || m.target_kg + "kg reward"} claimed!`);
+                    }
+                  }} style={{
+                    marginTop: 4, padding: "6px 16px", borderRadius: 100, fontSize: 10, letterSpacing: 1,
+                    textTransform: "uppercase" as const, fontFamily: f2, cursor: "pointer",
+                    border: isClaimed ? `1px solid ${T.grn}40` : `1px solid ${T.accent}40`,
+                    background: isClaimed ? "transparent" : T.accent + "14",
+                    color: isClaimed ? T.grn : T.accent, fontWeight: 500, transition: "all .2s",
+                  }}>
+                    {isClaimed ? "✓ Claimed" : "Claim reward"}
+                  </button>
+                )}
               </div>); })}
           </div>}
         </div>}
@@ -1296,7 +1398,12 @@ export default function Home() {
             <div style={{ fontFamily: f1, fontSize: 16, fontStyle: "italic", marginBottom: 6 }}>No entries yet</div>
             <div style={{ fontSize: 12 }}>{isPartner ? "Journal entries will appear here" : "Log your first weigh-in above"}</div>
           </div>}
-          {journal.map((entry, i) => (
+          {journal.map((entry, i) => {
+            const entryReactions = reactions[entry.id] || [];
+            const myReaction = entryReactions.find(r => r.userId === user?.uid);
+            const isOwnEntry = entry.user_id === user?.uid;
+            const reactionEmojis = ["👏", "💪", "🎉", "❤️", "🔥", "⭐"];
+            return (
             <div key={entry.id} style={{ background: T.card, border: `1px solid ${T.brd}`, borderRadius: 18, padding: "16px 18px", marginBottom: 6, opacity: on ? 1 : 0, transform: on ? "translateY(0)" : "translateY(14px)", transition: `all .6s cubic-bezier(.16,1,.3,1) ${.15 + i * .04}s`, position: "relative" }}>
               {!isPartner && (confirmDelete === entry.id
                 ? <div style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 4 }}>
@@ -1314,8 +1421,83 @@ export default function Home() {
                 {entry.weight && <div style={{ fontFamily: f1, fontSize: 22, fontWeight: 500 }}>{entry.weight}<span style={{ fontSize: 12, color: T.txt3, fontFamily: f2, fontWeight: 300, marginLeft: 2 }}>kg</span></div>}
                 {entry.note && <div style={{ fontSize: 13, color: T.txt2, lineHeight: 1.5, flex: 1 }}>{entry.note}</div>}
               </div>
+              {/* Reactions */}
+              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 8, flexWrap: "wrap" }}>
+                {/* Show existing reactions */}
+                {entryReactions.length > 0 && (
+                  <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                    {Object.entries(entryReactions.reduce<Record<string, number>>((acc, r) => { acc[r.emoji] = (acc[r.emoji] || 0) + 1; return acc; }, {})).map(([emoji, count]) => (
+                      <span key={emoji} style={{
+                        fontSize: 13, padding: "3px 8px", borderRadius: 100,
+                        background: myReaction?.emoji === emoji ? T.accent + "1a" : T.bg,
+                        border: `1px solid ${myReaction?.emoji === emoji ? T.accent + "40" : T.brd}`,
+                        cursor: !isOwnEntry ? "pointer" : "default",
+                        transition: "all .2s",
+                      }} onClick={async () => {
+                        if (isOwnEntry) return;
+                        if (myReaction?.emoji === emoji) {
+                          await api.removeReaction(entry.id, user.uid);
+                          setReactions(p => ({ ...p, [entry.id]: (p[entry.id] || []).filter(r => r.userId !== user.uid) }));
+                        } else {
+                          if (myReaction) {
+                            await api.removeReaction(entry.id, user.uid);
+                          }
+                          await api.addReaction(entry.id, user.uid, emoji);
+                          setReactions(p => ({ ...p, [entry.id]: [...(p[entry.id] || []).filter(r => r.userId !== user.uid), { userId: user.uid, emoji }] }));
+                        }
+                      }}>
+                        {emoji}{count > 1 && <span style={{ fontSize: 10, marginLeft: 2, color: T.txt3 }}>{count}</span>}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {/* Add reaction button (only if not own entry) */}
+                {!isOwnEntry && (
+                  <div style={{ position: "relative" }}>
+                    <button onClick={() => setReactionPicker(reactionPicker === entry.id ? null : entry.id)} style={{
+                      width: 28, height: 28, borderRadius: "50%", border: `1px solid ${T.brd}`,
+                      background: reactionPicker === entry.id ? T.accent + "14" : T.bg,
+                      fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                      color: T.txt3, transition: "all .2s", padding: 0,
+                    }}>
+                      {myReaction ? "😊" : "+"}
+                    </button>
+                    {reactionPicker === entry.id && (
+                      <div style={{
+                        position: "absolute", bottom: 34, left: "50%", transform: "translateX(-50%)",
+                        background: T.card, border: `1px solid ${T.brd}`, borderRadius: 16,
+                        padding: "6px 8px", display: "flex", gap: 2, zIndex: 50,
+                        boxShadow: `0 4px 20px rgba(0,0,0,.12)`, animation: "celebPop .3s cubic-bezier(.16,1,.3,1)",
+                      }}>
+                        {reactionEmojis.map(emoji => (
+                          <button key={emoji} onClick={async () => {
+                            if (myReaction) {
+                              await api.removeReaction(entry.id, user.uid);
+                            }
+                            await api.addReaction(entry.id, user.uid, emoji);
+                            setReactions(p => ({
+                              ...p,
+                              [entry.id]: [...(p[entry.id] || []).filter(r => r.userId !== user.uid), { userId: user.uid, emoji }],
+                            }));
+                            setReactionPicker(null);
+                            if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(30);
+                          }} style={{
+                            width: 34, height: 34, borderRadius: 8, border: "none",
+                            background: myReaction?.emoji === emoji ? T.accent + "22" : "transparent",
+                            fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                            transition: "transform .15s",
+                          }}>
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          ))}
+            );
+          })}
         </div>}
 
         {/* SETTINGS TAB */}
